@@ -3468,6 +3468,7 @@ Repeat
       Path=OpenFileRequester("Load Prefs",Home_Path,"Prefs File (*.prefs)|*.prefs",0)
       If Path<>""
         Load_Prefs(Path)
+        SetGadgetState(#ALT_FTP_CHECK,Alternate_FTP)
         SetGadgetText(#FTP_USER_STRING,ftp_user)
         SetGadgetText(#FTP_PASS_STRING,ftp_pass)
         SetGadgetText(#WHD_MAIN_STRING,WHD_Folder)
@@ -3646,14 +3647,14 @@ ForEver
 
 End
 ; IDE Options = PureBasic 6.00 Beta 2 (Windows - x64)
-; CursorPosition = 78
-; FirstLine = 62
+; CursorPosition = 3470
+; FirstLine = 912
 ; Folding = BAACIAAw
 ; Optimizer
 ; EnableXP
 ; DPIAware
 ; UseIcon = boing.ico
-; Executable = WHDTool_x64.exe
-; Compiler = PureBasic 6.00 Beta 2 - C Backend (Windows - x64)
+; Executable = WHDTool_x86.exe
+; Compiler = PureBasic 6.00 Beta 2 - C Backend (Windows - x86)
 ; Debugger = Standalone
 ; Warnings = Display
