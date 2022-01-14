@@ -1,6 +1,6 @@
 ﻿;- ############### WHDLoad Download Tool Info
 ;
-; Version 0.5a
+; Version 0.6a
 ;
 ; © 2021 / 2022 Paul Vince (MrV2k)
 ;
@@ -76,6 +76,7 @@
 ; Fixed disabled gadgets when loading a prefs file.
 ; Added switch to change between default PB or alternate FTP procedures.
 ; Updated help to reflect changes.
+; Adapted filter to show beta files separate to games
 ;
 ;============================================
 ; To Do List
@@ -1045,10 +1046,10 @@ Procedure Filter_List()
     Game_List()\File_Available=#False
     Game_List()\File_Filtered=#False  
     If Game_List()\File_Ignore=#True : Game_List()\File_Filtered=#True : EndIf
-    If Filter(0)\F_Games=#False And Game_List()\File_Type="Game" : Game_List()\File_Filtered=#True : EndIf   
+    If Filter(0)\F_Games=#False And Game_List()\File_Type="Game" And Game_List()\File_BETA<>#True : Game_List()\File_Filtered=#True : EndIf   
     If Filter(0)\F_Demos=#False And Game_List()\File_Type="Demo" : Game_List()\File_Filtered=#True : EndIf 
     If Filter(0)\F_Mags=#False And Game_List()\File_Type="Magazine" : Game_List()\File_Filtered=#True : EndIf 
-    If Filter(0)\F_Beta=#False And Game_List()\File_BETA=#True : Game_List()\File_Filtered=#True : EndIf 
+    If Filter(0)\F_Beta=#False And Game_List()\File_Type="Game" And Game_List()\File_BETA=#True : Game_List()\File_Filtered=#True : EndIf 
     If Filter(0)\F_AGA=#False And Game_List()\File_AGA=#True : Game_List()\File_Filtered=#True : EndIf
     If Filter(0)\F_ECS=#False And Game_List()\File_AGA=#False : Game_List()\File_Filtered=#True : EndIf
     If Filter(0)\F_NTSC=#False And Game_List()\File_NTSC=#True : Game_List()\File_Filtered=#True : EndIf
@@ -3645,14 +3646,14 @@ ForEver
 
 End
 ; IDE Options = PureBasic 6.00 Beta 2 (Windows - x64)
-; CursorPosition = 3164
-; FirstLine = 993
-; Folding = AAACAAA9
+; CursorPosition = 78
+; FirstLine = 62
+; Folding = BAACIAAw
 ; Optimizer
 ; EnableXP
 ; DPIAware
 ; UseIcon = boing.ico
-; Executable = WHDTool_x86.exe
-; Compiler = PureBasic 6.00 Beta 1 - C Backend (Windows - x64)
+; Executable = WHDTool_x64.exe
+; Compiler = PureBasic 6.00 Beta 2 - C Backend (Windows - x64)
 ; Debugger = Standalone
 ; Warnings = Display
