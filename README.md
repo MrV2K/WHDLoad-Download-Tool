@@ -1,4 +1,6 @@
-# WHDLoad-Download-Tool is a tool to help manage and download Retroplay's WHDLoad archives.
+# WHDLoad-Download-Tool
+-----------------------
+WHDLoad-Download-Tool is a tool to help manage and download Retroplay's WHDLoad archives.
 
 Main Features
 -------------
