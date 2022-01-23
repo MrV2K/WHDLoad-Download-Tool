@@ -1467,7 +1467,11 @@ Procedure Edit_List()
   
   DisableWindow(#MAIN_WINDOW,#True)
   
-  ListIconGadget(#EDIT_LIST,0,0,360,465,"",450,#PB_ListIcon_FullRowSelect | #LVS_NOCOLUMNHEADER | #PB_ListIcon_CheckBoxes)
+  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
+    ListIconGadget(#EDIT_LIST,0,0,360,465,"",450,#PB_ListIcon_FullRowSelect | #LVS_NOCOLUMNHEADER | #PB_ListIcon_CheckBoxes)
+  CompilerElse
+    ListIconGadget(#EDIT_LIST,0,0,360,465,"File List",450,#PB_ListIcon_FullRowSelect | #PB_ListIcon_CheckBoxes)
+  CompilerEndIf
   
   Pause_Gadget(#EDIT_LIST)
   
@@ -3589,9 +3593,9 @@ ForEver
 
 End
 ; IDE Options = PureBasic 6.00 Beta 2 (Windows - x64)
-; CursorPosition = 2174
-; FirstLine = 712
-; Folding = AAAAAAAAGA+
+; CursorPosition = 1474
+; FirstLine = 465
+; Folding = AAAAAADAMA9
 ; Optimizer
 ; EnableXP
 ; DPIAware
