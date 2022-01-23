@@ -98,7 +98,8 @@
 ;============================================
 ;
 ; Fixed old dat files not being deleted in load data procedure.
-; Cleaned up unneeded variables and lists from old FTP procedures
+; Cleaned up unneeded variables and lists from the FTP download procedures.
+; Made source code cross platform
 ;
 ;============================================
 ; To Do List
@@ -112,13 +113,17 @@ EnableExplicit
 
 ;- ############### Console Stuff
 
-Global ConsoleHandle
-
-If OpenLibrary(0, "Kernel32.dll")
-  Prototype GetConsoleWindow()
-  Global GetConsoleWindow.GetConsoleWindow = GetFunction(0, "GetConsoleWindow")
-  CloseLibrary(0)
-EndIf
+CompilerIf #PB_Compiler_OS=#PB_OS_Windows
+  
+  Global ConsoleHandle
+  
+  If OpenLibrary(0, "Kernel32.dll")
+    Prototype GetConsoleWindow()
+    Global GetConsoleWindow.GetConsoleWindow = GetFunction(0, "GetConsoleWindow")
+    CloseLibrary(0)
+  EndIf
+  
+CompilerEndIf
 
 ;- ############### Enumerations
 
@@ -347,9 +352,17 @@ Global Version.s="0.8a"
 
 Global Path.s, Count.i, Folder.s, FCount.f
 Global Home_Path.s=GetCurrentDirectory()
-Global Temp_Folder.s=GetTemporaryDirectory()+"whd_temp\"
-Global Dat_Folder.s=Home_Path+"Dats\"
-Global List_Path.s=Home_Path+"Lists\"
+
+CompilerIf #PB_Compiler_OS=#PB_OS_Windows
+  Global Temp_Folder.s=GetTemporaryDirectory()+"whd_temp\"
+  Global Dat_Folder.s=Home_Path+"Dats\"
+  Global List_Path.s=Home_Path+"Lists\"
+CompilerElse
+  Global Temp_Folder.s=GetTemporaryDirectory()+"whd_temp/"
+  Global Dat_Folder.s=Home_Path+"Dats/"
+  Global List_Path.s=Home_Path+"Lists/"
+CompilerEndIf
+
 Global First_Run.b=#False
 Global Prefs_Name.s="default.prefs"
 Global Lang_Bool.b=#True
@@ -357,6 +370,7 @@ Global Avail_Games.i=0
 Global Old_Pos.i
 Global Use_Subfolder.b=#False
 Global Use_0toZ_Folder.b=#False
+Global Slash$ ; For cross platform path compatability
 
 Global FTP_Folder.s
 Global FTP_Server.s
@@ -386,22 +400,38 @@ Declare Draw_List()
 ;- ############### Macros
 
 Macro Pause_Window(window)
-  SendMessage_(WindowID(window),#WM_SETREDRAW,#False,0)
+  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
+    SendMessage_(WindowID(window),#WM_SETREDRAW,#False,0)
+  CompilerElse
+    DisableWindow(window,#True)
+  CompilerEndIf
 EndMacro
 
 Macro Resume_Window(window)
-  SendMessage_(WindowID(window),#WM_SETREDRAW,#True,0)
-  RedrawWindow_(WindowID(window),#Null,#Null,#RDW_INVALIDATE)
+  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
+    SendMessage_(WindowID(window),#WM_SETREDRAW,#True,0)
+    RedrawWindow_(WindowID(window),#Null,#Null,#RDW_INVALIDATE)
+  CompilerElse
+    DisableWindow(window,#False)
+  CompilerEndIf
 EndMacro
 
 Macro Pause_Gadget(gadget)
-  SendMessage_(GadgetID(gadget),#WM_SETREDRAW,#False,0)
+  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
+    SendMessage_(GadgetID(gadget),#WM_SETREDRAW,#False,0)
+  CompilerElse
+    DisableGadget(gadget,#True)
+  CompilerEndIf
 EndMacro
 
 Macro Resume_Gadget(gadget)
-  SendMessage_(GadgetID(gadget),#WM_SETREDRAW,#True,0)
-  InvalidateRect_(GadgetID(gadget), 0, 0)             ; invalidate control area
-  UpdateWindow_(GadgetID(gadget))                     ; redraw invalidated area
+  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
+    SendMessage_(GadgetID(gadget),#WM_SETREDRAW,#True,0)
+    InvalidateRect_(GadgetID(gadget), 0, 0)             ; invalidate control area
+    UpdateWindow_(GadgetID(gadget))                     ; redraw invalidated area
+  CompilerElse
+    DisableGadget(gadget,#False)
+  CompilerEndIf
 EndMacro
 
 Macro Pause_Console()
@@ -521,7 +551,11 @@ Macro Default_Settings()
   FTP_Passive=#True
   FTP_Port=21
   
-  WHD_Folder=Home_Path+"Download\"
+  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
+    WHD_Folder=Home_Path+"Download\"
+  CompilerElse
+    WHD_Folder=Home_Path+"Download/"
+  CompilerEndIf
   FTP_Game_Folder="Commodore_Amiga_-_WHDLoad_-_Games"
   WHD_Game_Folder="Games"
   FTP_Demo_Folder="Commodore_Amiga_-_WHDLoad_-_Demos"
@@ -565,6 +599,19 @@ Macro Default_Settings()
   
 EndMacro
 
+Macro OpenFolder(folder_path)
+  CompilerSelect #PB_Compiler_OS
+    CompilerCase #PB_OS_Windows
+      RunProgram(folder_path)
+    CompilerCase #PB_OS_Linux
+      Path=ReplaceString(folder_path,"\","/")
+      RunProgram("nautilus",#DOUBLEQUOTE$+Path+#DOUBLEQUOTE$,"")
+    CompilerCase #PB_OS_MacOS
+      Path=ReplaceString(folder_path,"\","/")
+      RunProgram("open",#DOUBLEQUOTE$+Path+#DOUBLEQUOTE$,"")
+  CompilerEndSelect    
+EndMacro
+
 ;- ############### Misc Procedures
 
 Procedure.i Game_Number(archive.s)
@@ -589,14 +636,30 @@ Procedure.i Game_Number(archive.s)
 EndProcedure   
 
 Procedure.s GetDefaultFontName()
-  Protected fnt.l=GetStockObject_(#DEFAULT_GUI_FONT)
-  If fnt
-    Protected finfo.LOGFONT
-    GetObject_(fnt,SizeOf(LOGFONT),@finfo)
-    Protected systemfontname.s=PeekS(@finfo\lfFaceName[0])
-    ProcedureReturn PeekS(@finfo\lfFaceName[0])
-  EndIf
-  ProcedureReturn "System"
+  
+  CompilerSelect #PB_Compiler_OS
+      
+    CompilerCase#PB_OS_Windows
+      Protected fnt.l=GetStockObject_(#DEFAULT_GUI_FONT)
+      If fnt
+        Protected finfo.LOGFONT
+        GetObject_(fnt,SizeOf(LOGFONT),@finfo)
+        Protected systemfontname.s=PeekS(@finfo\lfFaceName[0])
+        ProcedureReturn PeekS(@finfo\lfFaceName[0])
+      EndIf
+      ProcedureReturn "System"
+      
+    CompilerCase #PB_OS_Linux
+      Protected gVal.GValue
+      Protected.s StdFnt
+      g_value_init_( @gval, #G_TYPE_STRING )
+      g_object_get_property( gtk_settings_get_default_(), "gtk-font-name", @gval )
+      StdFnt = PeekS( g_value_get_string_( @gval ), -1, #PB_UTF8 )
+      g_value_unset_( @gval )
+      ProcedureReturn StdFnt 
+      
+  CompilerEndSelect
+  
 EndProcedure
 
 Procedure TreeExpandAllItems(TreeId)
@@ -1770,7 +1833,12 @@ Procedure.b Download_Preview()
     
     oldgadgetlist=UseGadgetList(WindowID(#DOWNLOAD_WINDOW))
     
-    ListIconGadget(#DOWNLOAD_LIST,0,0,300,400,"",280,#PB_ListIcon_FullRowSelect | #LVS_NOCOLUMNHEADER)
+    CompilerIf #PB_Compiler_OS=#PB_OS_Windows
+      ListIconGadget(#DOWNLOAD_LIST,0,0,300,400,"",280,#PB_ListIcon_FullRowSelect | #LVS_NOCOLUMNHEADER)
+    CompilerElse
+      ListIconGadget(#DOWNLOAD_LIST,0,0,300,400,"File List",280,#PB_ListIcon_FullRowSelect)
+    CompilerEndIf
+    
     ButtonGadget(#DOWNLOAD_YES,5,405,140,40,"Start Download")
     ButtonGadget(#DOWNLOAD_NO,155,405,140,40,"Cancel")
     
@@ -2261,22 +2329,6 @@ Procedure Scrape_Data()
   
 EndProcedure
 
-;- ############### Windows & Gadgets
-; 
-; Procedure File_Viewer(file.s)
-;   
-;   Protected f_window, f_gadget
-;    
-;   OpenWindow(f_window,0,0,700,600,"File Viewer ("+GetFilePart(file)+")",#PB_Window_SystemMenu|#PB_Window_SizeGadget|#PB_Window_MinimizeGadget|#PB_Window_MaximizeGadget|#PB_Window_WindowCentered,WindowID(#MAIN_WINDOW))
-;   Pause_Window(f_window)
-;   WebGadget(f_gadget,0,0,700,600,"file://"+file)
-;   SetActiveGadget(f_gadget)
-;   Resume_Window(f_window)
-;   
-;   proc_exit:
-;   
-; EndProcedure 
-
 Procedure Draw_List()
     
   Pause_Gadget(#MAIN_LIST)
@@ -2306,13 +2358,17 @@ Procedure Draw_List()
   Update_Statusbar()
   Resume_Gadget(#MAIN_LIST)
   
-  If GetWindowLongPtr_(GadgetID(#MAIN_LIST), #GWL_STYLE) & #WS_VSCROLL
-    SetGadgetItemAttribute(#MAIN_LIST,1,#PB_ListIcon_ColumnWidth,422)
-  Else
-    SetGadgetItemAttribute(#MAIN_LIST,1,#PB_ListIcon_ColumnWidth,440)
-  EndIf
+  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
+    If GetWindowLongPtr_(GadgetID(#MAIN_LIST), #GWL_STYLE) & #WS_VSCROLL
+      SetGadgetItemAttribute(#MAIN_LIST,1,#PB_ListIcon_ColumnWidth,422)
+    Else
+      SetGadgetItemAttribute(#MAIN_LIST,1,#PB_ListIcon_ColumnWidth,440)
+    EndIf
+  CompilerEndIf
   
 EndProcedure
+
+;- ############### Window Procedures
 
 Procedure About_Window()
   
@@ -2344,11 +2400,15 @@ Procedure About_Window()
 
   output$+#CRLF$
   output$+"If you use this tool, please consider donating towards the running costs of the Turran file server. I'm sure that Turran will be most appreciative! The link is below..."+#CRLF$ 
-
-  StringGadget(#ABOUT_STRING,0,0,340,270,output$, #PB_String_ReadOnly | #ES_MULTILINE | #ESB_DISABLE_LEFT|#ESB_DISABLE_RIGHT)
   
-  SetWindowLongPtr_(GadgetID(#ABOUT_STRING),#GWL_EXSTYLE,0)
-  SetWindowPos_(GadgetID(#ABOUT_STRING),0,0,0,0,0,#SWP_NOMOVE | #SWP_NOSIZE | #SWP_FRAMECHANGED)
+  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
+    StringGadget(#ABOUT_STRING,0,0,340,270,output$, #PB_String_ReadOnly | #ES_MULTILINE | #ESB_DISABLE_LEFT|#ESB_DISABLE_RIGHT)
+    SetWindowLongPtr_(GadgetID(#ABOUT_STRING),#GWL_EXSTYLE,0)
+    SetWindowPos_(GadgetID(#ABOUT_STRING),0,0,0,0,0,#SWP_NOMOVE | #SWP_NOSIZE | #SWP_FRAMECHANGED)
+  CompilerElse
+    EditorGadget(#ABOUT_STRING,0,0,340,270,#PB_Editor_ReadOnly|#PB_Editor_WordWrap)
+    SetGadgetText(output$)
+  CompilerEndIf
   
   SetGadgetFont(#ABOUT_STRING,FontID(#HELP_FONT))
   
@@ -2362,7 +2422,15 @@ Procedure About_Window()
   Repeat
     Event=WaitWindowEvent()
     If EventGadget()=#ABOUT_LINK And EventType()=#PB_EventType_LeftClick
-      RunProgram("https://www.paypal.com/donate/?cmd=_donations&business=eab@grandis.nu&lc=US&item_name=Donation+to+EAB+FTP&no_note=0&cn=&curency_code=USD&bn=PP-DonationsBF:btn_donateCC_LG.gif:NonHosted","","")
+      path="https://www.paypal.com/donate/?cmd=_donations&business=eab@grandis.nu&lc=US&item_name=Donation+to+EAB+FTP&no_note=0&cn=&curency_code=USD&bn=PP-DonationsBF:btn_donateCC_LG.gif:NonHosted"
+      CompilerSelect #PB_Compiler_OS
+        CompilerCase #PB_OS_Windows
+          RunProgram(path,"","")
+        CompilerCase #PB_OS_Linux
+          RunProgram("sensible-browser",#DOUBLEQUOTE$+Path+#DOUBLEQUOTE$+" &","")
+        CompilerCase #PB_OS_MacOS
+          RunProgram("open",#DOUBLEQUOTE$+Path+#DOUBLEQUOTE$,"")
+      CompilerEndSelect
     EndIf
     If EventWindow()=#ABOUT_WINDOW And Event()=#PB_Event_CloseWindow
       UseGadgetList(oldgadgetlist)
@@ -2387,8 +2455,12 @@ Procedure Help_Window()
   
   Pause_Window(#HELP_WINDOW)
   
-  StringGadget(#HELP_EDITOR,0,0,500,600,"", #PB_String_ReadOnly|#ES_MULTILINE | #ES_AUTOVSCROLL|#WS_VSCROLL|#ESB_DISABLE_LEFT|#ESB_DISABLE_RIGHT)
-  
+  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
+    StringGadget(#HELP_EDITOR,0,0,500,600,"", #PB_String_ReadOnly|#ES_MULTILINE | #ES_AUTOVSCROLL|#WS_VSCROLL|#ESB_DISABLE_LEFT|#ESB_DISABLE_RIGHT)
+  CompilerElse
+    EditorGadget(#HELP_EDITOR,0,0,500,600,#PB_Editor_ReadOnly|#PB_Editor_WordWrap)
+  CompilerEndIf
+
   SetGadgetColor(#HELP_EDITOR,#PB_Gadget_BackColor,#White)
   
   SetGadgetFont(#HELP_EDITOR,FontID(#HELP_FONT))
@@ -2692,7 +2764,11 @@ Procedure Main_Window()
   
   Pause_Window(#MAIN_WINDOW)
   
-  ListIconGadget(#MAIN_LIST,5,5,445,575,"",0,#PB_ListIcon_FullRowSelect | #LVS_NOCOLUMNHEADER)
+  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
+    ListIconGadget(#MAIN_LIST,5,5,445,575,"",0,#PB_ListIcon_FullRowSelect | #LVS_NOCOLUMNHEADER)
+  CompilerElse
+    ListIconGadget(#MAIN_LIST,5,5,445,575,"File List",0,#PB_ListIcon_FullRowSelect)
+  CompilerEndIf
   
   SetGadgetFont(#MAIN_LIST,FontID(#MAIN_FONT))
   
@@ -2878,6 +2954,14 @@ EndProcedure
 
 UseZipPacker()
 
+CompilerSelect #PB_Compiler_OS 
+  CompilerCase #PB_OS_Linux
+    #G_TYPE_STRING = 64
+    ImportC ""
+      g_object_get_property(*widget.GtkWidget, property.p-utf8, *gval)
+    EndImport
+CompilerEndSelect
+
 LoadFont(#HELP_FONT,"Consolas",9,#PB_Font_HighQuality)
 LoadFont(#MAIN_FONT,GetDefaultFontName(),9,#PB_Font_HighQuality)
 
@@ -2944,7 +3028,15 @@ Repeat
       
     Case #DONATE_BUTTON
       If  EventType()=#PB_EventType_LeftClick
-        RunProgram("https://www.paypal.com/donate/?cmd=_donations&business=eab@grandis.nu&lc=US&item_name=Donation+to+EAB+FTP&no_note=0&cn=&curency_code=USD&bn=PP-DonationsBF:btn_donateCC_LG.gif:NonHosted","","")
+        path="https://www.paypal.com/donate/?cmd=_donations&business=eab@grandis.nu&lc=US&item_name=Donation+to+EAB+FTP&no_note=0&cn=&curency_code=USD&bn=PP-DonationsBF:btn_donateCC_LG.gif:NonHosted"
+        CompilerSelect #PB_Compiler_OS
+          CompilerCase #PB_OS_Windows
+            RunProgram(path,"","")
+          CompilerCase #PB_OS_Linux
+            RunProgram("sensible-browser",#DOUBLEQUOTE$+Path+#DOUBLEQUOTE$+" &","")
+          CompilerCase #PB_OS_MacOS
+            RunProgram("open",#DOUBLEQUOTE$+Path+#DOUBLEQUOTE$,"")
+        CompilerEndSelect
       EndIf
       
     Case #MAIN_LIST
@@ -2959,15 +3051,15 @@ Repeat
     Case #WHD_OPEN_PATH_BUTTON
       Path=WHD_Folder
       If FileSize(path)=-2
-        RunProgram("file://"+Path)
+        OpenFolder(path)
       Else
         MessageRequester("Error","This folder is created on"+Chr(10)+"your first download.",#PB_MessageRequester_Ok|#PB_MessageRequester_Error)
       EndIf
       
     Case #WHD_SET_PATH_BUTTON
       Path=PathRequester("Select Folder",WHD_Folder)
-      If Path<>""
-        If CountString(path,"\")=1
+      If Path<>""       
+        If CountString(path,slash$)=1
           MessageRequester("Error", "Do not use a root path!", #PB_MessageRequester_Error|#PB_MessageRequester_Ok)
         Else
           WHD_Folder=Path  
@@ -2979,8 +3071,8 @@ Repeat
       
     Case #WHD_OPEN_GAME_BUTTON
       Path=WHD_Folder+WHD_Game_Folder+"\"
-      If FileSize(path)=-2
-        RunProgram("file://"+Path)
+      If FileSize(Path)=-2
+        OpenFolder(Path)
       Else
         MessageRequester("Error","This folder is created on"+Chr(10)+"your first download.",#PB_MessageRequester_Ok|#PB_MessageRequester_Error)
       EndIf
@@ -2992,8 +3084,8 @@ Repeat
             
     Case #WHD_OPEN_DEMO_BUTTON
       Path=WHD_Folder+WHD_Demo_Folder+"\"
-      If FileSize(path)=-2
-        RunProgram("file://"+Path)
+      If FileSize(Path)=-2
+        OpenFolder(Path)
       Else
         MessageRequester("Error","This folder does not exist!",#PB_MessageRequester_Ok|#PB_MessageRequester_Error)
       EndIf
@@ -3005,8 +3097,8 @@ Repeat
       
     Case #WHD_OPEN_BETA_BUTTON
       Path=WHD_Folder+WHD_Beta_Folder+"\"
-      If FileSize(path)=-2
-        RunProgram("file://"+Path)
+      If FileSize(Path)=-2
+        OpenFolder(Path)
       Else
         MessageRequester("Error","This folder does not exist!",#PB_MessageRequester_Ok|#PB_MessageRequester_Error)
       EndIf
@@ -3019,7 +3111,7 @@ Repeat
     Case #WHD_OPEN_MAGS_BUTTON
       Path=WHD_Folder+WHD_Mags_Folder+"\"
       If FileSize(path)=-2
-        RunProgram("file://"+Path)
+        OpenFolder(Path)
       Else
         MessageRequester("Error","This folder is created on"+Chr(10)+"your first download.",#PB_MessageRequester_Ok|#PB_MessageRequester_Error)
       EndIf
@@ -3101,8 +3193,7 @@ Repeat
       EndIf
             
     Case #DOWNLOAD_BUTTON 
-        Download_FTP()
-      
+      Download_FTP()
       Update_File_List()
       Draw_List()
       
@@ -3327,9 +3418,9 @@ ForEver
 
 End
 ; IDE Options = PureBasic 6.00 Beta 2 (Windows - x64)
-; CursorPosition = 2277
-; FirstLine = 493
-; Folding = AACAAAAA5
+; CursorPosition = 101
+; FirstLine = 77
+; Folding = DAgAAAAgQ2
 ; Optimizer
 ; EnableXP
 ; DPIAware
