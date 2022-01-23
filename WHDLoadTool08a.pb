@@ -1587,51 +1587,65 @@ EndProcedure
 ;- ############### FTP & Data
 
 Procedure.l FTPInit() 
-  ProcedureReturn InternetOpen_("FTP",1,"","",0) 
+  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
+    ProcedureReturn InternetOpen_("FTP",1,"","",0) 
+  CompilerEndIf
 EndProcedure 
 
 Procedure.l FTPConnect(hInternet,Server.s,User.s,Password.s,port.l) 
-  ProcedureReturn InternetConnect_(hInternet,Server,port,User,Password,1,0,0) 
+  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
+    ProcedureReturn InternetConnect_(hInternet,Server,port,User,Password,1,0,0) 
+  CompilerEndIf
 EndProcedure 
 
 Procedure.l FTPDir(hConnect.l, List FTPFiles.s()) 
-  
-  Protected hFind.l, Find.i
-  Protected FTPFile.WIN32_FIND_DATA
-  
-  hFind=FtpFindFirstFile_(hConnect,"*.*",@FTPFile.WIN32_FIND_DATA,0,0) 
-  If hFind 
-    Find=1 
-    While Find 
-      Find=InternetFindNextFile_(hFind,@FTPFile) 
-      If Find
-        AddElement(FTPFiles())
-        FTPFiles()=PeekS(@FTPFile\cFileName) ;Files
-      EndIf      
-    Wend
-    InternetCloseHandle_(hFind) 
-  EndIf 
-  
+  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
+    Protected hFind.l, Find.i
+    Protected FTPFile.WIN32_FIND_DATA
+    
+    hFind=FtpFindFirstFile_(hConnect,"*.*",@FTPFile.WIN32_FIND_DATA,0,0) 
+    If hFind 
+      Find=1 
+      While Find 
+        Find=InternetFindNextFile_(hFind,@FTPFile) 
+        If Find
+          AddElement(FTPFiles())
+          FTPFiles()=PeekS(@FTPFile\cFileName) ;Files
+        EndIf      
+      Wend
+      InternetCloseHandle_(hFind) 
+    EndIf 
+  CompilerEndIf
 EndProcedure 
 
 Procedure.l FTPSetDir(hConnect.l,Dir.s) 
-  ProcedureReturn FtpSetCurrentDirectory_(hConnect,Dir) 
+  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
+    ProcedureReturn FtpSetCurrentDirectory_(hConnect,Dir) 
+  CompilerEndIf
 EndProcedure 
 
 Procedure.l FTPCreateDir(hConnect.l,Dir.s) 
-  ProcedureReturn FtpCreateDirectory_(hConnect,Dir) 
+  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
+    ProcedureReturn FtpCreateDirectory_(hConnect,Dir) 
+  CompilerEndIf
 EndProcedure 
 
 Procedure.l FTPDownload(hConnect.l,Source.s,Dest.s) 
-  ProcedureReturn FtpGetFile_(hConnect,Source,Dest,0,0,0,0) 
+  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
+    ProcedureReturn FtpGetFile_(hConnect,Source,Dest,0,0,0,0) 
+  CompilerEndIf
 EndProcedure 
 
 Procedure.l FTPUpload(hConnect.l,Source.s,Dest.s) 
-  ProcedureReturn FtpPutFile_(hConnect,Source,Dest,0,0) 
+  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
+    ProcedureReturn FtpPutFile_(hConnect,Source,Dest,0,0) 
+  CompilerEndIf
 EndProcedure 
 
 Procedure.l FTPClose(hInternet.l) 
-  ProcedureReturn InternetCloseHandle_(hInternet) 
+  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
+    ProcedureReturn InternetCloseHandle_(hInternet) 
+  CompilerEndIf
 EndProcedure 
 
 Procedure Scan_FTP()
@@ -3593,9 +3607,9 @@ ForEver
 
 End
 ; IDE Options = PureBasic 6.00 Beta 2 (Windows - x64)
-; CursorPosition = 1474
-; FirstLine = 465
-; Folding = AAAAAADAMA9
+; CursorPosition = 1615
+; FirstLine = 579
+; Folding = AAAAAA---wAw
 ; Optimizer
 ; EnableXP
 ; DPIAware
