@@ -1,6 +1,6 @@
 ﻿;- ############### WHDLoad Download Tool Info
 ;
-; Version 0.7a
+; Version 0.8a
 ;
 ; © 2021 / 2022 Paul Vince (MrV2k)
 ;
@@ -3607,8 +3607,8 @@ ForEver
 
 End
 ; IDE Options = PureBasic 6.00 Beta 2 (Windows - x64)
-; CursorPosition = 1615
-; FirstLine = 579
+; CursorPosition = 1470
+; FirstLine = 474
 ; Folding = AAAAAA---wAw
 ; Optimizer
 ; EnableXP
