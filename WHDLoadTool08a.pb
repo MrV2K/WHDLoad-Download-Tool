@@ -1634,8 +1634,8 @@ Procedure Scan_FTP()
   
   Protected NewList Dat_List.s() ; Zipped DAT files on FTP.
   Protected NewList XML_List.s() ; DAT files in each zip.
-  Protected NewList Scan_List.s() ; Files in dats folder to compare
-  Protected NewMap File_Map.s() ; Files from FTP to compare to Scan_List
+  Protected NewList Scan_List.s(); Files in dats folder to compare
+  Protected NewMap File_Map.s()  ; Files from FTP to compare to Scan_List
   
   Protected dat_archive.i, xml_file.i    
   Protected hInternet.l, hConnect.l 
@@ -1655,82 +1655,153 @@ Procedure Scan_FTP()
   
   OpenConsole(ConsoleTitle$)
   
-  ConsoleHandle = GetConsoleWindow()
-  DeleteMenu_(GetSystemMenu_(ConsoleHandle, #False), 6, #MF_BYPOSITION)
-  SendMessage_(ConsoleHandle, #WM_NCPAINT, 1, 0)
-  
-  hInternet=FTPInit()   
-  hConnect=FTPConnect(hInternet,FTP_Server,FTP_User,FTP_Pass,FTP_Port) 
-  
-  If hConnect
-    PrintNCol("Checking for update...",11,0)
-    PrintN("")
-    PrintNCol("Connected to "+ftp_server+" on port:"+Str(FTP_Port),2,0)
-    ftp_log="Connected to "+ftp_server+" on port:"+Str(FTP_Port)+#CRLF$
-    Count=0
+  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
     
-    If FTPSetDir(hConnect,FTP_Folder)
+    ConsoleHandle = GetConsoleWindow()
+    DeleteMenu_(GetSystemMenu_(ConsoleHandle, #False), 6, #MF_BYPOSITION)
+    SendMessage_(ConsoleHandle, #WM_NCPAINT, 1, 0)
+    
+    hInternet=FTPInit()   
+    hConnect=FTPConnect(hInternet,FTP_Server,FTP_User,FTP_Pass,FTP_Port) 
+    
+    If hConnect
+      PrintNCol("Checking for update...",11,0)
       PrintN("")
-      PrintNCol("Opening FTP Folder - "+FTP_Folder,9,0)
-      ftp_log+"Opening FTP Folder - "+FTP_Folder+#CRLF$
-      FTPDir(hConnect,FTP_Dir_Files())
-      ForEach FTP_Dir_Files()
-        If GetExtensionPart(FTP_Dir_Files())<>"zip" : DeleteElement(FTP_Dir_Files()) : EndIf
-      Next  
-      If ListSize(FTP_Dir_Files())>0
+      PrintNCol("Connected to "+ftp_server+" on port:"+Str(FTP_Port),2,0)
+      ftp_log="Connected to "+ftp_server+" on port:"+Str(FTP_Port)+#CRLF$
+      Count=0
+      
+      If FTPSetDir(hConnect,FTP_Folder)
         PrintN("")
-        PrintNCol("Reading FTP Folder - "+FTP_Folder,13,0)
-        ftp_log+"Reading FTP Folder - "+FTP_Folder+#CRLF$
-        Delay(50)
+        PrintNCol("Opening FTP Folder - "+FTP_Folder,9,0)
+        ftp_log+"Opening FTP Folder - "+FTP_Folder+#CRLF$
+        FTPDir(hConnect,FTP_Dir_Files())
         ForEach FTP_Dir_Files()
-          FileName$=FTP_Dir_Files()
-          If FindString(FileName$,"Commodore Amiga - WHDLoad - Games") Or FindString(FileName$,"Commodore Amiga - WHDLoad - Demos") Or FindString(FileName$,"Commodore Amiga - WHDLoad - Magazines")
-            If FileSize(Dat_Folder)<>-2 : CreateDirectory(Dat_Folder) : EndIf
-            SetCurrentDirectory(Dat_Folder)
-            If FileSize(Dat_Folder+FileName$)=-1 ; If the dat file doesn't exist, download it 
-              FTPDownload(hConnect,FileName$,FileName$)
-              PrintN("Downloading : "+FileName$)
-              ftp_log+"Downloading : "+FileName$+#CRLF$
+          If GetExtensionPart(FTP_Dir_Files())<>"zip" : DeleteElement(FTP_Dir_Files()) : EndIf
+        Next  
+        If ListSize(FTP_Dir_Files())>0
+          PrintN("")
+          PrintNCol("Reading FTP Folder - "+FTP_Folder,13,0)
+          ftp_log+"Reading FTP Folder - "+FTP_Folder+#CRLF$
+          Delay(50)
+          ForEach FTP_Dir_Files()
+            FileName$=FTP_Dir_Files()
+            If FindString(FileName$,"Commodore Amiga - WHDLoad - Games") Or FindString(FileName$,"Commodore Amiga - WHDLoad - Demos") Or FindString(FileName$,"Commodore Amiga - WHDLoad - Magazines")
+              If FileSize(Dat_Folder)<>-2 : CreateDirectory(Dat_Folder) : EndIf
+              SetCurrentDirectory(Dat_Folder)
+              If FileSize(Dat_Folder+FileName$)=-1 ; If the dat file doesn't exist, download it 
+                FTPDownload(hConnect,FileName$,FileName$)
+                PrintN("Downloading : "+FileName$)
+                ftp_log+"Downloading : "+FileName$+#CRLF$
+              EndIf
+              AddElement(Dat_List())
+              Dat_List()=FileName$ ; Add file to downloaded file list
             EndIf
-            AddElement(Dat_List())
-            Dat_List()=FileName$ ; Add file to downloaded file list
-          EndIf
-        Next
-      EndIf
+          Next
+        EndIf
+      Else
+        PrintN("")
+        PrintNCol("Error - Cannot find FTP folder!",4,0)
+        ftp_log+"Error - Cannot find FTP folder!"+#CRLF$
+        Delay(2000)  
+        FTPClose(hInternet)  
+        PrintN("")
+        PrintNCol("FTP connection closed.",14,0)
+        ftp_log+"FTP connection closed."+#CRLF$
+        
+        Goto Proc_Exit
+        
+      EndIf   
+      
     Else
+      
       PrintN("")
-      PrintNCol("Error - Cannot find FTP folder!",4,0)
-      ftp_log+"Error - Cannot find FTP folder!"+#CRLF$
-      Delay(2000)  
-      FTPClose(hInternet)  
+      PrintNCol("Error - Cannot connect to FTP!",4,0)
+      ftp_log+"Error - Cannot connect to FTP!"+#CRLF$
+      Goto Proc_Exit
+      
+    EndIf
+    
+    FTPClose(hInternet)  
+    PrintN("")
+    PrintNCol("FTP connection closed.",14,0)
+    ftp_log+"FTP connection closed."+#CRLF$
+    
+  CompilerElse
+    
+    If OpenFTP(#FTP,FTP_Server,FTP_User,FTP_Pass)
+      PrintN("")
+      PrintNCol("Checking for update...",11,0)
+      PrintN("")
+      PrintNCol("Connected to "+ftp_server+" on port:"+Str(FTP_Port),2,0)
+      ftp_log="Connected to "+ftp_server+" on port:"+Str(FTP_Port)+#CRLF$
+      Count=0
+      
+      Repeat
+        result=SetFTPDirectory(#FTP,FTP_Folder)
+        PrintN("")
+        PrintNCol("Opening FTP Folder - "+FTP_Folder+" Attempt:"+Str(Count),9,0)
+        ftp_log+"Opening FTP Folder - "+FTP_Folder+" Attempt:"+Str(Count)+#CRLF$
+        Delay(2000)
+        Count+1
+        FileName$=GetFTPDirectory(#FTP)
+      Until RemoveString(FileName$,"/")=FTP_Folder Or Count=5
+      
+      If result>-1   
+        If ExamineFTPDirectory(#FTP)
+          PrintN("")
+          PrintNCol("Reading FTP Folder - "+FTP_Folder,13,0)
+          ftp_log+"Reading FTP Folder - "+FTP_Folder+#CRLF$
+          Delay(100)
+          While NextFTPDirectoryEntry(#FTP)
+            If FTPDirectoryEntrySize(#FTP)>0
+              If FTPDirectoryEntryType(#FTP)=#PB_FTP_File
+                FileName$=FTPDirectoryEntryName(#FTP)
+                If FindString(FileName$,"Commodore Amiga - WHDLoad - Games") Or FindString(FileName$,"Commodore Amiga - WHDLoad - Demos") Or FindString(FileName$,"Commodore Amiga - WHDLoad - Magazines")
+                  If FTPDirectoryEntrySize(#FTP)>0
+                    If FileSize(Dat_Folder)<>-2 : CreateDirectory(Dat_Folder) : EndIf
+                    FileName$=FTPDirectoryEntryName(#FTP)
+                    If FileSize(Dat_Folder+FileName$)=-1 ; If the dat file doesn't exist, download it
+                      ReceiveFTPFile(#FTP,FileName$,Dat_Folder+FileName$,#False)
+                      PrintN("Downloading : "+FileName$)
+                      ftp_log+"Downloading : "+FileName$+#CRLF$
+                    EndIf
+                    AddElement(Dat_List())
+                    Dat_List()=FileName$ ; Add file to downloaded file list
+                  EndIf
+                EndIf
+              EndIf
+            EndIf
+          Wend
+          FinishFTPDirectory(#FTP)
+          SetFTPDirectory(#FTP,"/") 
+        EndIf
+      Else
+        PrintN("")
+        PrintNCol("Error - Cannot find FTP folder!",4,0)
+      EndIf
+      CloseFTP(#PB_All)  
       PrintN("")
       PrintNCol("FTP connection closed.",14,0)
       ftp_log+"FTP connection closed."+#CRLF$
       
+    Else
+      
+      PrintN("")
+      PrintNCol("Error: Cannot connect to FTP!",4,0)
+      Delay(2000)
       Goto Proc_Exit
       
-    EndIf   
+    EndIf
     
-  Else
-    
-    PrintN("")
-    PrintNCol("Error - Cannot connect to FTP!",4,0)
-    ftp_log+"Error - Cannot connect to FTP!"+#CRLF$
-    Goto Proc_Exit
-    
-  EndIf
-  
-  FTPClose(hInternet)  
-  PrintN("")
-  PrintNCol("FTP connection closed.",14,0)
-  ftp_log+"FTP connection closed."+#CRLF$
+  CompilerEndIf  
   
   List_Files_Recursive(Dat_Folder,Scan_List(),"*.zip") ; Scan all the files in the dat folder
   
   ForEach Scan_List() ; Remove path information
     Scan_List()=GetFilePart(Scan_List())
   Next
-
+  
   ForEach Dat_List() ; Load the datfiles into a map
     File_Map(Dat_List())=""
   Next
@@ -1845,7 +1916,7 @@ Procedure.b Download_Preview()
     ForEach Down_List()
       AddGadgetItem(#DOWNLOAD_LIST,-1,Down_List()\Down_Name)
     Next
-        
+    
     Resume_Window(#DOWNLOAD_WINDOW)
     
     Repeat
@@ -1871,7 +1942,7 @@ Procedure.b Download_Preview()
       EndSelect         
       
     ForEver  
-        
+    
     UseGadgetList(oldgadgetlist)
     
     CloseWindow(#DOWNLOAD_WINDOW)
@@ -1892,7 +1963,7 @@ Procedure Download_FTP()
   Protected path$=""
   Protected FileName$
   Protected Keypressed$
-    
+  
   ClearList(Down_List())
   
   ForEach Filtered_List()
@@ -1919,7 +1990,7 @@ Procedure Download_FTP()
       EndIf 
     EndIf
   Next   
-
+  
   If ListSize(Down_List())>0   
     
     If Download_Preview()
@@ -1931,115 +2002,215 @@ Procedure Download_FTP()
       
       OpenConsole("FTP Download (Press 'Esc' to cancel download.)")
       
-      ConsoleHandle = GetConsoleWindow()
-      DeleteMenu_(GetSystemMenu_(ConsoleHandle, #False), 6, #MF_BYPOSITION)
-      SendMessage_(ConsoleHandle, #WM_NCPAINT, 1, 0)
-      
-      hInternet=FTPInit()   
-      hConnect=FTPConnect(hInternet,FTP_Server,FTP_User,FTP_Pass,FTP_Port) 
-      
-      If hConnect
+      CompilerIf #PB_Compiler_OS=#PB_OS_Windows
         
+        ConsoleHandle = GetConsoleWindow()
+        DeleteMenu_(GetSystemMenu_(ConsoleHandle, #False), 6, #MF_BYPOSITION)
+        SendMessage_(ConsoleHandle, #WM_NCPAINT, 1, 0)
+        
+        hInternet=FTPInit()   
+        hConnect=FTPConnect(hInternet,FTP_Server,FTP_User,FTP_Pass,FTP_Port) 
+        
+        If hConnect
+          
+          PrintNCol("Connected to "+ftp_server+" on port:"+Str(ftp_port),2,0)
+          ftp_log+"Connected to "+ftp_server+" on port:"+Str(ftp_port)+#CRLF$
+          
+          If CreateFile(log_file, Home_Path+"ftp.log")
+            WriteString(log_file, ftp_log)
+            CloseFile(log_file)  
+          EndIf
+          
+          PrintN("")
+          PrintNCol("Opening FTP Folder - "+FTP_Folder,9,0)
+          ftp_log+"Opening FTP Folder - "+FTP_Folder+#CRLF$ 
+          
+          FTPSetDir(hConnect,FTP_Folder)
+          Delay(50)
+          
+          PrintN("")
+          
+          ForEach Down_List() 
+            
+            FTPSetDir(hConnect,Down_List()\Down_FTP_Folder) ; Change to FTP folder
+            Delay(50)
+            FTPSetDir(hConnect,Down_List()\Down_0toZ) ; Change to subfolder
+            Delay(50)
+            
+            If Use_Subfolder ; Create and add subfolder information to the downloads if selected
+              CreateDirectory(WHD_Folder+Down_List()\Down_Subfolder)
+              down_path=WHD_Folder+Down_List()\Down_Subfolder+"\"+Down_List()\Down_Name
+              If Use_0toZ_Folder 
+                CreateDirectory(WHD_Folder+Down_List()\Down_Subfolder+Down_List()\Down_0toZ) 
+                down_path=WHD_Folder+Down_List()\Down_Subfolder+Down_List()\Down_0toZ+"\"+Down_List()\Down_Name
+              EndIf
+            Else
+              down_path=WHD_Folder+Down_List()\Down_Name
+            EndIf   
+            
+            If FTPDownload(hConnect,Down_List()\Down_Name,down_path)  
+              If FileSize(down_path)>0
+                PrintN("Downloading ("+Str(ListIndex(Down_List()))+" of "+Str(ListSize(Down_List()))+") - "+Down_List()\Down_Name+" ("+Str(FileSize(down_path))+" bytes)")
+                ftp_log+"Downloaded - " + Down_List()\Down_Name+" ("+Str(FileSize(down_path))+" bytes)"+#CRLF$    
+              Else
+                ftp_log+"No data received for file "+Down_List()\Down_Name+#CRLF$
+                PrintNCol("No data received for file " + Down_List()\Down_Name,4,0)
+                DeleteFile(down_path)
+              EndIf
+            Else
+              ftp_log+"Error downloading "+Down_List()\Down_Name+#CRLF$
+              PrintNCol("Error downloading : " + Down_List()\Down_Name,4,0)   
+            EndIf 
+            
+            FTPSetDir(hConnect,"/")
+            Delay(50)
+            FTPSetDir(hConnect,FTP_Folder)   
+            Delay(50)
+            
+            If OpenFile(log_file, Home_Path+"ftp.log")
+              WriteString(log_file, ftp_log)
+              CloseFile(log_file)  
+            EndIf
+            
+            Keypressed$=Inkey()
+            
+            If Keypressed$=Chr(27)
+              PrintN("")
+              PrintNCol("*** Download Cancelled ***",4,0)
+              ftp_log+"*** Download Cancelled ***"+#CRLF$
+              Delay(1000)
+              cancel=#True
+              Break
+            EndIf
+            
+          Next 
+          
+          FTPClose(hInternet)
+          PrintN("")
+          PrintNCol("FTP connection closed.",14,0)
+          ftp_log+"FTP connection closed."+#CRLF$
+          
+        EndIf
+        
+        If cancel<>#True
+          PrintN("")
+          PrintNCol("Download complete.",2,0)
+          ftp_log+"Download complete."+#CRLF$
+        EndIf
+        
+        PrintN("")
+        PrintNCol("Please donate to the Turran FTP. The link is on the 'About' window.",2,0)
+        ftp_log+"Please donate to the Turran FTP.."+#CRLF$
+        Delay(3000)
+        
+      Else
+        
+        PrintNCol("Error: Cannot connect to FTP.",4,0)
+        ftp_log+"Error: Cannot connect to FTP."+#CRLF$
+        Delay(3000)
+        
+        Goto Proc_Exit
+        
+      EndIf 
+      
+    CompilerElse
+      
+      PrintN("")
+      
+      If OpenFTP(#FTP,FTP_Server,FTP_User,FTP_Pass)
         PrintNCol("Connected to "+ftp_server+" on port:"+Str(ftp_port),2,0)
         ftp_log+"Connected to "+ftp_server+" on port:"+Str(ftp_port)+#CRLF$
-        
         If CreateFile(log_file, Home_Path+"ftp.log")
           WriteString(log_file, ftp_log)
           CloseFile(log_file)  
         EndIf
         
-        PrintN("")
-        PrintNCol("Opening FTP Folder - "+FTP_Folder,9,0)
-        ftp_log+"Opening FTP Folder - "+FTP_Folder+#CRLF$ 
+        Repeat
+          SetFTPDirectory(#FTP,FTP_Folder)
+          PrintN("")
+          PrintNCol("Opening FTP Folder - "+FTP_Folder+" Attempt:"+Str(Count),9,0)
+          ftp_log+"Opening FTP Folder - "+FTP_Folder+" Attempt:"+Str(Count)+#CRLF$
+          Delay(250)
+          Count+1
+          FileName$=GetFTPDirectory(#FTP)
+        Until RemoveString(FileName$,"/")=FTP_Folder Or Count=20
         
-        FTPSetDir(hConnect,FTP_Folder)
-        Delay(50)
-        
-        PrintN("")
-        
-        ForEach Down_List() 
-          
-          FTPSetDir(hConnect,Down_List()\Down_FTP_Folder) ; Change to FTP folder
+        If SetFTPDirectory(#FTP,FTP_Folder) 
           Delay(50)
-          FTPSetDir(hConnect,Down_List()\Down_0toZ) ; Change to subfolder
-          Delay(50)
-          
-          If Use_Subfolder ; Create and add subfolder information to the downloads if selected
-            CreateDirectory(WHD_Folder+Down_List()\Down_Subfolder)
-            down_path=WHD_Folder+Down_List()\Down_Subfolder+"\"+Down_List()\Down_Name
-            If Use_0toZ_Folder 
-              CreateDirectory(WHD_Folder+Down_List()\Down_Subfolder+Down_List()\Down_0toZ) 
-              down_path=WHD_Folder+Down_List()\Down_Subfolder+Down_List()\Down_0toZ+"\"+Down_List()\Down_Name
-            EndIf
-          Else
-            down_path=WHD_Folder+Down_List()\Down_Name
-          EndIf   
-          
-          If FTPDownload(hConnect,Down_List()\Down_Name,down_path)  
-            If FileSize(down_path)>0
-              PrintN("Downloading ("+Str(ListIndex(Down_List()))+" of "+Str(ListSize(Down_List()))+") - "+Down_List()\Down_Name+" ("+Str(FileSize(down_path))+" bytes)")
-              ftp_log+"Downloaded - " + Down_List()\Down_Name+" ("+Str(FileSize(down_path))+" bytes)"+#CRLF$    
+          PrintN("")
+          PrintNCol("Opening FTP Folder - "+FTP_Folder,9,0)
+          PrintN("")
+          ForEach Down_List() 
+            SetFTPDirectory(#FTP,Down_List()\Down_FTP_Folder) ; Change to FTP folder
+            Delay(50)
+            SetFTPDirectory(#FTP,Down_List()\Down_0toZ) ; Change to subfolder
+            Delay(50)
+            If Use_Subfolder
+              CreateDirectory(WHD_Folder+Down_List()\Down_Subfolder)
+              down_path=WHD_Folder+Down_List()\Down_Subfolder+"/"+Down_List()\Down_Name
+              If Use_0toZ_Folder 
+                CreateDirectory(WHD_Folder+Down_List()\Down_Subfolder+Down_List()\Down_0toZ) 
+                down_path=WHD_Folder+Down_List()\Down_Subfolder+Down_List()\Down_0toZ+"/"+Down_List()\Down_Name
+              EndIf
             Else
-              ftp_log+"No data received for file "+Down_List()\Down_Name+#CRLF$
-              PrintNCol("No data received for file " + Down_List()\Down_Name,4,0)
-              DeleteFile(down_path)
+              down_path=WHD_Folder+Down_List()\Down_Name
+            EndIf   
+            
+            If ReceiveFTPFile(#FTP,Down_List()\Down_Name,down_path,#False)  
+              If FileSize(down_path)>0
+                PrintN("Downloading ("+Str(ListIndex(Down_List()))+" of "+Str(ListSize(Down_List()))+") - "+Down_List()\Down_Name+" ("+Str(FileSize(down_path))+" bytes)")
+                ftp_log+"Downloaded - " + Down_List()\Down_Name+" ("+Str(FileSize(down_path))+" bytes)"+#CRLF$    
+              Else
+                ftp_log+"No data received for file "+Down_List()\Down_Name+". Retrying DOS FTP after other downloads..."+#CRLF$
+                PrintNCol("No data received for file " + Down_List()\Down_Name+". Retrying with DOS FTP after other downloads...",4,0)
+                DeleteFile(down_path)
+              EndIf
+            Else
+              ftp_log+"Error downloading "+Down_List()\Down_Name+#CRLF$
+              PrintNCol("Error downloading : " + Down_List()\Down_Name,4,0)   
+            EndIf 
+            FinishFTPDirectory(#FTP)
+            SetFTPDirectory(#FTP,"/")
+            SetFTPDirectory(#FTP,ftp_Folder)   
+            If OpenFile(log_file, Home_Path+"ftp.log")
+              WriteString(log_file, ftp_log)
+              CloseFile(log_file)  
             EndIf
-          Else
-            ftp_log+"Error downloading "+Down_List()\Down_Name+#CRLF$
-            PrintNCol("Error downloading : " + Down_List()\Down_Name,4,0)   
-          EndIf 
-          
-          FTPSetDir(hConnect,"/")
-          Delay(50)
-          FTPSetDir(hConnect,FTP_Folder)   
-          Delay(50)
-          
-          If OpenFile(log_file, Home_Path+"ftp.log")
-            WriteString(log_file, ftp_log)
-            CloseFile(log_file)  
-          EndIf
-          
-          Keypressed$=Inkey()
-          
-          If Keypressed$=Chr(27)
-            PrintN("")
-            PrintNCol("*** Download Cancelled ***",4,0)
-            ftp_log+"*** Download Cancelled ***"+#CRLF$
-            Delay(1000)
-            cancel=#True
-            Break
-          EndIf
-          
-        Next 
+            Keypressed$=Inkey()
+            If Keypressed$=Chr(27)
+              PrintN("")
+              PrintNCol("*** Download Cancelled ***",4,0)
+              ftp_log+"*** Download Cancelled ***"+#CRLF$
+              Delay(1000)
+              cancel=#True
+              Break
+            EndIf
+          Next 
+          CloseFTP(#FTP)
+          PrintN("")
+          PrintNCol("FTP connection closed.",14,0)
+          ftp_log+"FTP connection closed."+#CRLF$
+        EndIf
         
-        FTPClose(hInternet)
+        If cancel<>#True
+          PrintN("")
+          PrintNCol("Download complete.",2,0)
+          ftp_log+"Download complete."+#CRLF$
+        EndIf
+        
         PrintN("")
-        PrintNCol("FTP connection closed.",14,0)
-        ftp_log+"FTP connection closed."+#CRLF$
-        
-      EndIf
+        PrintNCol("Please donate to the Turran FTP. The link is on the 'About' window.",2,0)
+        ftp_log+"Please donate to the Turran FTP.."+#CRLF$
+        Delay(3000)
+      Else
+        PrintNCol("Error: Cannot connect to FTP.",4,0)
+        ftp_log+"Error: Cannot connect to FTP."+#CRLF$
+        Delay(3000)
+        Goto Proc_Exit
+      EndIf 
       
-      If cancel<>#True
-        PrintN("")
-        PrintNCol("Download complete.",2,0)
-        ftp_log+"Download complete."+#CRLF$
-      EndIf
-      
-      PrintN("")
-      PrintNCol("Please donate to the Turran FTP. The link is on the 'About' window.",2,0)
-      ftp_log+"Please donate to the Turran FTP.."+#CRLF$
-      Delay(3000)
-      
-    Else
-      
-      PrintNCol("Error: Cannot connect to FTP.",4,0)
-      ftp_log+"Error: Cannot connect to FTP."+#CRLF$
-      Delay(3000)
-      
-      Goto Proc_Exit
-      
-    EndIf 
-        
+    CompilerEndIf
+  
     Proc_Exit:
     
     CloseConsole()
@@ -3418,9 +3589,9 @@ ForEver
 
 End
 ; IDE Options = PureBasic 6.00 Beta 2 (Windows - x64)
-; CursorPosition = 1702
-; FirstLine = 522
-; Folding = DAgAAAAoR2
+; CursorPosition = 2174
+; FirstLine = 712
+; Folding = AAAAAAAAGA+
 ; Optimizer
 ; EnableXP
 ; DPIAware
