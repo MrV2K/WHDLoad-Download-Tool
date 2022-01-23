@@ -1681,7 +1681,7 @@ Procedure Scan_FTP()
         PrintN("")
         PrintNCol("Reading FTP Folder - "+FTP_Folder,13,0)
         ftp_log+"Reading FTP Folder - "+FTP_Folder+#CRLF$
-        Delay(100)
+        Delay(50)
         ForEach FTP_Dir_Files()
           FileName$=FTP_Dir_Files()
           If FindString(FileName$,"Commodore Amiga - WHDLoad - Games") Or FindString(FileName$,"Commodore Amiga - WHDLoad - Demos") Or FindString(FileName$,"Commodore Amiga - WHDLoad - Magazines")
@@ -3418,9 +3418,9 @@ ForEver
 
 End
 ; IDE Options = PureBasic 6.00 Beta 2 (Windows - x64)
-; CursorPosition = 101
-; FirstLine = 77
-; Folding = DAgAAAAgQ2
+; CursorPosition = 1702
+; FirstLine = 522
+; Folding = DAgAAAAoR2
 ; Optimizer
 ; EnableXP
 ; DPIAware
