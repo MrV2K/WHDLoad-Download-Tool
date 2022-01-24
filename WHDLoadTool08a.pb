@@ -6,13 +6,12 @@
 ;
 ; https://easyemu.mameworld.info
 ;
-; [ PB V5.7x/V6.x / 32Bit / 64Bit / Windows / Linux 64Bit / DPI ]
+; [ PB V5.7x/V6.x / 32Bit / 64Bit / Windows / DPI ]
 ;
 ; A downloader for Retroplay's WHDLoad Archive & More!
 ;
 ;- ############### Credits
 ;
-; RSBasic for the PBEx_FTP library
 ; Conrad Fenech & Brian Lloyd for bug testing the connection issues
 ;
 ;- ############### Version Info
@@ -99,7 +98,7 @@
 ;
 ; Fixed old dat files not being deleted in load data procedure.
 ; Cleaned up unneeded variables and lists from the FTP download procedures.
-; Made source code cross platform
+; Fixed console actions on Download FTP procedure
 ;
 ;============================================
 ; To Do List
@@ -113,17 +112,13 @@ EnableExplicit
 
 ;- ############### Console Stuff
 
-CompilerIf #PB_Compiler_OS=#PB_OS_Windows
-  
-  Global ConsoleHandle
-  
-  If OpenLibrary(0, "Kernel32.dll")
-    Prototype GetConsoleWindow()
-    Global GetConsoleWindow.GetConsoleWindow = GetFunction(0, "GetConsoleWindow")
-    CloseLibrary(0)
-  EndIf
-  
-CompilerEndIf
+Global ConsoleHandle
+
+If OpenLibrary(0, "Kernel32.dll")
+  Prototype GetConsoleWindow()
+  Global GetConsoleWindow.GetConsoleWindow = GetFunction(0, "GetConsoleWindow")
+  CloseLibrary(0)
+EndIf
 
 ;- ############### Enumerations
 
@@ -131,6 +126,7 @@ Enumeration
   
   #FTP
   #REGEX
+  #LIST_FILE
   
   #MAIN_WINDOW
   #MAIN_STATUS
@@ -141,7 +137,7 @@ Enumeration
   #MAIN_PATH_CONTAINER
   #MAIN_FTP_CONTAINER
   #MAIN_BUTTON_CONTAINER
-    
+  
   #DELETE_WINDOW
   #DELETE_LIST
   #DELETE_CANCEL_BUTTON
@@ -184,7 +180,7 @@ Enumeration
   #HELP_BUTTON
   #ABOUT_BUTTON
   #CLEAR_LANG_BUTTON
-    
+  
   #LIST_APPEND_BUTTON
   #LIST_LOAD_BUTTON
   #LIST_SAVE_BUTTON
@@ -353,15 +349,11 @@ Global Version.s="0.8a"
 Global Path.s, Count.i, Folder.s, FCount.f
 Global Home_Path.s=GetCurrentDirectory()
 
-CompilerIf #PB_Compiler_OS=#PB_OS_Windows
-  Global Temp_Folder.s=GetTemporaryDirectory()+"whd_temp\"
-  Global Dat_Folder.s=Home_Path+"Dats\"
-  Global List_Path.s=Home_Path+"Lists\"
-CompilerElse
-  Global Temp_Folder.s=GetTemporaryDirectory()+"whd_temp/"
-  Global Dat_Folder.s=Home_Path+"Dats/"
-  Global List_Path.s=Home_Path+"Lists/"
-CompilerEndIf
+
+Global Temp_Folder.s=GetTemporaryDirectory()+"whd_temp\"
+Global Dat_Folder.s=Home_Path+"Dats\"
+Global List_Path.s=Home_Path+"Lists\"
+
 
 Global First_Run.b=#False
 Global Prefs_Name.s="default.prefs"
@@ -400,38 +392,22 @@ Declare Draw_List()
 ;- ############### Macros
 
 Macro Pause_Window(window)
-  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
-    SendMessage_(WindowID(window),#WM_SETREDRAW,#False,0)
-  CompilerElse
-    DisableWindow(window,#True)
-  CompilerEndIf
+  SendMessage_(WindowID(window),#WM_SETREDRAW,#False,0)
 EndMacro
 
 Macro Resume_Window(window)
-  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
-    SendMessage_(WindowID(window),#WM_SETREDRAW,#True,0)
-    RedrawWindow_(WindowID(window),#Null,#Null,#RDW_INVALIDATE)
-  CompilerElse
-    DisableWindow(window,#False)
-  CompilerEndIf
+  SendMessage_(WindowID(window),#WM_SETREDRAW,#True,0)
+  RedrawWindow_(WindowID(window),#Null,#Null,#RDW_INVALIDATE)
 EndMacro
 
 Macro Pause_Gadget(gadget)
-  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
-    SendMessage_(GadgetID(gadget),#WM_SETREDRAW,#False,0)
-  CompilerElse
-    DisableGadget(gadget,#True)
-  CompilerEndIf
+  SendMessage_(GadgetID(gadget),#WM_SETREDRAW,#False,0)
 EndMacro
 
 Macro Resume_Gadget(gadget)
-  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
-    SendMessage_(GadgetID(gadget),#WM_SETREDRAW,#True,0)
-    InvalidateRect_(GadgetID(gadget), 0, 0)             ; invalidate control area
-    UpdateWindow_(GadgetID(gadget))                     ; redraw invalidated area
-  CompilerElse
-    DisableGadget(gadget,#False)
-  CompilerEndIf
+  SendMessage_(GadgetID(gadget),#WM_SETREDRAW,#True,0)
+  InvalidateRect_(GadgetID(gadget), 0, 0)
+  UpdateWindow_(GadgetID(gadget))
 EndMacro
 
 Macro Pause_Console()
@@ -515,7 +491,7 @@ Macro Update_File_List()
 EndMacro
 
 Macro Update_Title()
-   
+  
   FCount=0
   
   ForEach Filtered_List()
@@ -549,13 +525,8 @@ Macro Default_Settings()
   FTP_User="ftp"
   FTP_Pass="amiga"
   FTP_Passive=#True
-  FTP_Port=21
-  
-  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
-    WHD_Folder=Home_Path+"Download\"
-  CompilerElse
-    WHD_Folder=Home_Path+"Download/"
-  CompilerEndIf
+  FTP_Port=21 
+  WHD_Folder=Home_Path+"Download\"
   FTP_Game_Folder="Commodore_Amiga_-_WHDLoad_-_Games"
   WHD_Game_Folder="Games"
   FTP_Demo_Folder="Commodore_Amiga_-_WHDLoad_-_Demos"
@@ -600,16 +571,7 @@ Macro Default_Settings()
 EndMacro
 
 Macro OpenFolder(folder_path)
-  CompilerSelect #PB_Compiler_OS
-    CompilerCase #PB_OS_Windows
-      RunProgram(folder_path)
-    CompilerCase #PB_OS_Linux
-      Path=ReplaceString(folder_path,"\","/")
-      RunProgram("nautilus",#DOUBLEQUOTE$+Path+#DOUBLEQUOTE$,"")
-    CompilerCase #PB_OS_MacOS
-      Path=ReplaceString(folder_path,"\","/")
-      RunProgram("open",#DOUBLEQUOTE$+Path+#DOUBLEQUOTE$,"")
-  CompilerEndSelect    
+  RunProgram(folder_path)  
 EndMacro
 
 ;- ############### Misc Procedures
@@ -637,28 +599,14 @@ EndProcedure
 
 Procedure.s GetDefaultFontName()
   
-  CompilerSelect #PB_Compiler_OS
-      
-    CompilerCase#PB_OS_Windows
-      Protected fnt.l=GetStockObject_(#DEFAULT_GUI_FONT)
-      If fnt
-        Protected finfo.LOGFONT
-        GetObject_(fnt,SizeOf(LOGFONT),@finfo)
-        Protected systemfontname.s=PeekS(@finfo\lfFaceName[0])
-        ProcedureReturn PeekS(@finfo\lfFaceName[0])
-      EndIf
-      ProcedureReturn "System"
-      
-    CompilerCase #PB_OS_Linux
-      Protected gVal.GValue
-      Protected.s StdFnt
-      g_value_init_( @gval, #G_TYPE_STRING )
-      g_object_get_property( gtk_settings_get_default_(), "gtk-font-name", @gval )
-      StdFnt = PeekS( g_value_get_string_( @gval ), -1, #PB_UTF8 )
-      g_value_unset_( @gval )
-      ProcedureReturn StdFnt 
-      
-  CompilerEndSelect
+  Protected fnt.l=GetStockObject_(#DEFAULT_GUI_FONT)
+  If fnt
+    Protected finfo.LOGFONT
+    GetObject_(fnt,SizeOf(LOGFONT),@finfo)
+    Protected systemfontname.s=PeekS(@finfo\lfFaceName[0])
+    ProcedureReturn PeekS(@finfo\lfFaceName[0])
+  EndIf
+  ProcedureReturn "System"
   
 EndProcedure
 
@@ -732,13 +680,13 @@ Procedure Disable_Gadgets(bool.b)
   DisableGadget(#CLEAR_BUTTON,bool)
   DisableGadget(#CLEAR_LIST_BUTTON,bool)
   DisableGadget(#RESET_BUTTON,bool)
-
+  
   DisableGadget(#DOWNLOAD_BUTTON,bool)
   
   DisableGadget(#LIST_EDIT_BUTTON,bool)
   DisableGadget(#LIST_LOAD_BUTTON,bool)
   DisableGadget(#LIST_SAVE_BUTTON,bool)
-    
+  
   Resume_Window(#MAIN_WINDOW)
   
 EndProcedure
@@ -777,9 +725,9 @@ Procedure Update_Statusbar()
     StatusBarText(#MAIN_STATUS,5,"Status: ?",#PB_StatusBar_Center)
     StatusBarText(#MAIN_STATUS,6,"Size: ?",#PB_StatusBar_Center)
     StatusBarText(#MAIN_STATUS,7,"Version: ?",#PB_StatusBar_Center)
-
+    
   EndIf
-
+  
   
 EndProcedure
 
@@ -851,7 +799,7 @@ Procedure List_Files_Recursive_Size(Dir.s, List Files.File_Data(), Extension.s) 
             Default
               AddElement(Directories())
               Directories() = Dir + DirectoryEntryName(Folder_LIST)
-
+              
           EndSelect
       EndSelect
     Wend
@@ -1110,7 +1058,7 @@ Procedure Filter_List()
   FreeMap(File_Map())
   
   ClearList(Filtered_List())
-
+  
   ForEach Game_List()
     If Game_List()\File_Filtered=#False : AddElement(Filtered_List()) : Filtered_List()=ListIndex(Game_List()) : EndIf
     If Game_List()\File_Filtered=#True And Game_List()\File_Extra=#True : AddElement(Filtered_List()) : Filtered_List()=ListIndex(Game_List()) : EndIf
@@ -1324,7 +1272,7 @@ EndProcedure
 Procedure Load_List()
   
   Protected result.l
-  Protected file.l, text$
+  Protected text$
   
   If Check_Filter()
     result=MessageRequester("Warning","This will reset all filters. Continue?",#PB_MessageRequester_Warning|#PB_MessageRequester_YesNo)
@@ -1335,7 +1283,7 @@ Procedure Load_List()
     Set_Filter(#True)
     Set_Filter_Gadgets()
     Draw_List()
-   
+    
     ClearList(List_Games())
     
     Protected NewMap LHA_Files.i()
@@ -1346,10 +1294,10 @@ Procedure Load_List()
     
     path=OpenFileRequester("Load List File",List_Path,"List File (*.lst)|*.lst",0)
     If path<>""
-      file=ReadFile(#PB_Any,path)
-      If file
-        While Not Eof(file)
-          text$=ReadString(file)
+      ReadFile(#LIST_FILE,path)
+      If #LIST_FILE
+        While Not Eof(#LIST_FILE)
+          text$=ReadString(#LIST_FILE)
           If Left(text$,1)<>";"
             If FindMapElement(LHA_Files(), text$)
               AddElement(List_Games())
@@ -1357,8 +1305,8 @@ Procedure Load_List()
             EndIf
           EndIf
         Wend
-        FlushFileBuffers(file)
-        CloseFile(file)
+        FlushFileBuffers(#LIST_FILE)
+        CloseFile(#LIST_FILE)
       EndIf
       DisableGadget(#CLEAR_EDITS_BUTTON,#False)
     EndIf
@@ -1385,8 +1333,6 @@ EndProcedure
 
 Procedure Save_List()
   
-  Protected file.l
-  
   Path=OpenFileRequester("Save List File",List_Path,"List File (*.lst)|*.lst",0)
   If Path<>""
     If GetExtensionPart(path)<>"lst" : path+".lst" : EndIf 
@@ -1395,13 +1341,12 @@ Procedure Save_List()
         Goto Proc_Exit2:
       EndIf
     EndIf
-    file=CreateFile(#PB_Any,Path)
-    If file
+    If CreateFile(#LIST_FILE,Path)
       ForEach Filtered_List()
         SelectElement(Game_List(),Filtered_List())
-        WriteStringN(file,Game_List()\File_Name)
+        WriteStringN(#LIST_FILE,Game_List()\File_Name)
       Next
-      CloseFile(file)
+      CloseFile(#LIST_FILE)
     Else
       MessageRequester("Error","Cannot Create File!",#PB_MessageRequester_Error|#PB_MessageRequester_Ok)
     EndIf
@@ -1413,7 +1358,7 @@ EndProcedure
 
 Procedure Append_List()
   
-  Protected file.l, text$
+  Protected text$
   
   Protected NewMap LHA_Files.i()
   
@@ -1423,10 +1368,9 @@ Procedure Append_List()
   
   path=OpenFileRequester("Append List File",List_Path,"List File (*.lst)|*.lst",0)
   If path<>""
-    file=ReadFile(#PB_Any,path)
-    If file
-      While Not Eof(file)
-        text$=ReadString(file)
+    If ReadFile(#PB_Any,path)
+      While Not Eof(#LIST_FILE)
+        text$=ReadString(#LIST_FILE)
         If Left(text$,1)<>";"
           If FindMapElement(LHA_Files(), text$)
             AddElement(List_Games())
@@ -1434,13 +1378,13 @@ Procedure Append_List()
           EndIf
         EndIf
       Wend
-      FlushFileBuffers(file)
-      CloseFile(file)
+      FlushFileBuffers(#LIST_FILE)
+      CloseFile(#LIST_FILE)
     EndIf
   EndIf
   
   FreeMap(LHA_Files())
-    
+  
   ForEach List_Games()
     SelectElement(Game_List(),Game_Number(List_Games()))
     Game_List()\File_Ignore=#False
@@ -1467,11 +1411,7 @@ Procedure Edit_List()
   
   DisableWindow(#MAIN_WINDOW,#True)
   
-  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
-    ListIconGadget(#EDIT_LIST,0,0,360,465,"",450,#PB_ListIcon_FullRowSelect | #LVS_NOCOLUMNHEADER | #PB_ListIcon_CheckBoxes)
-  CompilerElse
-    ListIconGadget(#EDIT_LIST,0,0,360,465,"File List",450,#PB_ListIcon_FullRowSelect | #PB_ListIcon_CheckBoxes)
-  CompilerEndIf
+  ListIconGadget(#EDIT_LIST,0,0,360,465,"",450,#PB_ListIcon_FullRowSelect | #LVS_NOCOLUMNHEADER | #PB_ListIcon_CheckBoxes)
   
   Pause_Gadget(#EDIT_LIST)
   
@@ -1587,65 +1527,49 @@ EndProcedure
 ;- ############### FTP & Data
 
 Procedure.l FTPInit() 
-  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
-    ProcedureReturn InternetOpen_("FTP",1,"","",0) 
-  CompilerEndIf
+  ProcedureReturn InternetOpen_("FTP",1,"","",0) 
 EndProcedure 
 
 Procedure.l FTPConnect(hInternet,Server.s,User.s,Password.s,port.l) 
-  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
-    ProcedureReturn InternetConnect_(hInternet,Server,port,User,Password,1,0,0) 
-  CompilerEndIf
+  ProcedureReturn InternetConnect_(hInternet,Server,port,User,Password,1,0,0) 
 EndProcedure 
 
 Procedure.l FTPDir(hConnect.l, List FTPFiles.s()) 
-  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
-    Protected hFind.l, Find.i
-    Protected FTPFile.WIN32_FIND_DATA
-    
-    hFind=FtpFindFirstFile_(hConnect,"*.*",@FTPFile.WIN32_FIND_DATA,0,0) 
-    If hFind 
-      Find=1 
-      While Find 
-        Find=InternetFindNextFile_(hFind,@FTPFile) 
-        If Find
-          AddElement(FTPFiles())
-          FTPFiles()=PeekS(@FTPFile\cFileName) ;Files
-        EndIf      
-      Wend
-      InternetCloseHandle_(hFind) 
-    EndIf 
-  CompilerEndIf
+  Protected hFind.l, Find.i
+  Protected FTPFile.WIN32_FIND_DATA
+  
+  hFind=FtpFindFirstFile_(hConnect,"*.*",@FTPFile.WIN32_FIND_DATA,0,0) 
+  If hFind 
+    Find=1 
+    While Find 
+      Find=InternetFindNextFile_(hFind,@FTPFile) 
+      If Find
+        AddElement(FTPFiles())
+        FTPFiles()=PeekS(@FTPFile\cFileName) ;Files
+      EndIf      
+    Wend
+    InternetCloseHandle_(hFind) 
+  EndIf 
 EndProcedure 
 
 Procedure.l FTPSetDir(hConnect.l,Dir.s) 
-  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
-    ProcedureReturn FtpSetCurrentDirectory_(hConnect,Dir) 
-  CompilerEndIf
+  ProcedureReturn FtpSetCurrentDirectory_(hConnect,Dir) 
 EndProcedure 
 
 Procedure.l FTPCreateDir(hConnect.l,Dir.s) 
-  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
-    ProcedureReturn FtpCreateDirectory_(hConnect,Dir) 
-  CompilerEndIf
+  ProcedureReturn FtpCreateDirectory_(hConnect,Dir) 
 EndProcedure 
 
 Procedure.l FTPDownload(hConnect.l,Source.s,Dest.s) 
-  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
-    ProcedureReturn FtpGetFile_(hConnect,Source,Dest,0,0,0,0) 
-  CompilerEndIf
+  ProcedureReturn FtpGetFile_(hConnect,Source,Dest,0,0,0,0) 
 EndProcedure 
 
 Procedure.l FTPUpload(hConnect.l,Source.s,Dest.s) 
-  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
-    ProcedureReturn FtpPutFile_(hConnect,Source,Dest,0,0) 
-  CompilerEndIf
+  ProcedureReturn FtpPutFile_(hConnect,Source,Dest,0,0) 
 EndProcedure 
 
 Procedure.l FTPClose(hInternet.l) 
-  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
-    ProcedureReturn InternetCloseHandle_(hInternet) 
-  CompilerEndIf
+  ProcedureReturn InternetCloseHandle_(hInternet) 
 EndProcedure 
 
 Procedure Scan_FTP()
@@ -1673,146 +1597,75 @@ Procedure Scan_FTP()
   
   OpenConsole(ConsoleTitle$)
   
-  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
-    
-    ConsoleHandle = GetConsoleWindow()
-    DeleteMenu_(GetSystemMenu_(ConsoleHandle, #False), 6, #MF_BYPOSITION)
-    SendMessage_(ConsoleHandle, #WM_NCPAINT, 1, 0)
-    
-    hInternet=FTPInit()   
-    hConnect=FTPConnect(hInternet,FTP_Server,FTP_User,FTP_Pass,FTP_Port) 
-    
-    If hConnect
-      PrintNCol("Checking for update...",11,0)
-      PrintN("")
-      PrintNCol("Connected to "+ftp_server+" on port:"+Str(FTP_Port),2,0)
-      ftp_log="Connected to "+ftp_server+" on port:"+Str(FTP_Port)+#CRLF$
-      Count=0
-      
-      If FTPSetDir(hConnect,FTP_Folder)
-        PrintN("")
-        PrintNCol("Opening FTP Folder - "+FTP_Folder,9,0)
-        ftp_log+"Opening FTP Folder - "+FTP_Folder+#CRLF$
-        FTPDir(hConnect,FTP_Dir_Files())
-        ForEach FTP_Dir_Files()
-          If GetExtensionPart(FTP_Dir_Files())<>"zip" : DeleteElement(FTP_Dir_Files()) : EndIf
-        Next  
-        If ListSize(FTP_Dir_Files())>0
-          PrintN("")
-          PrintNCol("Reading FTP Folder - "+FTP_Folder,13,0)
-          ftp_log+"Reading FTP Folder - "+FTP_Folder+#CRLF$
-          Delay(50)
-          ForEach FTP_Dir_Files()
-            FileName$=FTP_Dir_Files()
-            If FindString(FileName$,"Commodore Amiga - WHDLoad - Games") Or FindString(FileName$,"Commodore Amiga - WHDLoad - Demos") Or FindString(FileName$,"Commodore Amiga - WHDLoad - Magazines")
-              If FileSize(Dat_Folder)<>-2 : CreateDirectory(Dat_Folder) : EndIf
-              SetCurrentDirectory(Dat_Folder)
-              If FileSize(Dat_Folder+FileName$)=-1 ; If the dat file doesn't exist, download it 
-                FTPDownload(hConnect,FileName$,FileName$)
-                PrintN("Downloading : "+FileName$)
-                ftp_log+"Downloading : "+FileName$+#CRLF$
-              EndIf
-              AddElement(Dat_List())
-              Dat_List()=FileName$ ; Add file to downloaded file list
-            EndIf
-          Next
-        EndIf
-      Else
-        PrintN("")
-        PrintNCol("Error - Cannot find FTP folder!",4,0)
-        ftp_log+"Error - Cannot find FTP folder!"+#CRLF$
-        Delay(2000)  
-        FTPClose(hInternet)  
-        PrintN("")
-        PrintNCol("FTP connection closed.",14,0)
-        ftp_log+"FTP connection closed."+#CRLF$
-        
-        Goto Proc_Exit
-        
-      EndIf   
-      
-    Else
-      
-      PrintN("")
-      PrintNCol("Error - Cannot connect to FTP!",4,0)
-      ftp_log+"Error - Cannot connect to FTP!"+#CRLF$
-      Goto Proc_Exit
-      
-    EndIf
-    
-    FTPClose(hInternet)  
+  ConsoleHandle = GetConsoleWindow()
+  DeleteMenu_(GetSystemMenu_(ConsoleHandle, #False), 6, #MF_BYPOSITION)
+  SendMessage_(ConsoleHandle, #WM_NCPAINT, 1, 0)
+  
+  hInternet=FTPInit()   
+  hConnect=FTPConnect(hInternet,FTP_Server,FTP_User,FTP_Pass,FTP_Port) 
+  
+  If hConnect
+    PrintNCol("Checking for update...",11,0)
     PrintN("")
-    PrintNCol("FTP connection closed.",14,0)
-    ftp_log+"FTP connection closed."+#CRLF$
+    PrintNCol("Connected to "+ftp_server+" on port:"+Str(FTP_Port),2,0)
+    ftp_log="Connected to "+ftp_server+" on port:"+Str(FTP_Port)+#CRLF$
+    Count=0
     
-  CompilerElse
-    
-    If OpenFTP(#FTP,FTP_Server,FTP_User,FTP_Pass)
+    If FTPSetDir(hConnect,FTP_Folder)
       PrintN("")
-      PrintNCol("Checking for update...",11,0)
-      PrintN("")
-      PrintNCol("Connected to "+ftp_server+" on port:"+Str(FTP_Port),2,0)
-      ftp_log="Connected to "+ftp_server+" on port:"+Str(FTP_Port)+#CRLF$
-      Count=0
-      
-      Repeat
-        result=SetFTPDirectory(#FTP,FTP_Folder)
+      PrintNCol("Opening FTP Folder - "+FTP_Folder,9,0)
+      ftp_log+"Opening FTP Folder - "+FTP_Folder+#CRLF$
+      FTPDir(hConnect,FTP_Dir_Files())
+      ForEach FTP_Dir_Files()
+        If GetExtensionPart(FTP_Dir_Files())<>"zip" : DeleteElement(FTP_Dir_Files()) : EndIf
+      Next  
+      If ListSize(FTP_Dir_Files())>0
         PrintN("")
-        PrintNCol("Opening FTP Folder - "+FTP_Folder+" Attempt:"+Str(Count),9,0)
-        ftp_log+"Opening FTP Folder - "+FTP_Folder+" Attempt:"+Str(Count)+#CRLF$
-        Delay(2000)
-        Count+1
-        FileName$=GetFTPDirectory(#FTP)
-      Until RemoveString(FileName$,"/")=FTP_Folder Or Count=5
-      
-      If result>-1   
-        If ExamineFTPDirectory(#FTP)
-          PrintN("")
-          PrintNCol("Reading FTP Folder - "+FTP_Folder,13,0)
-          ftp_log+"Reading FTP Folder - "+FTP_Folder+#CRLF$
-          Delay(100)
-          While NextFTPDirectoryEntry(#FTP)
-            If FTPDirectoryEntrySize(#FTP)>0
-              If FTPDirectoryEntryType(#FTP)=#PB_FTP_File
-                FileName$=FTPDirectoryEntryName(#FTP)
-                If FindString(FileName$,"Commodore Amiga - WHDLoad - Games") Or FindString(FileName$,"Commodore Amiga - WHDLoad - Demos") Or FindString(FileName$,"Commodore Amiga - WHDLoad - Magazines")
-                  If FTPDirectoryEntrySize(#FTP)>0
-                    If FileSize(Dat_Folder)<>-2 : CreateDirectory(Dat_Folder) : EndIf
-                    FileName$=FTPDirectoryEntryName(#FTP)
-                    If FileSize(Dat_Folder+FileName$)=-1 ; If the dat file doesn't exist, download it
-                      ReceiveFTPFile(#FTP,FileName$,Dat_Folder+FileName$,#False)
-                      PrintN("Downloading : "+FileName$)
-                      ftp_log+"Downloading : "+FileName$+#CRLF$
-                    EndIf
-                    AddElement(Dat_List())
-                    Dat_List()=FileName$ ; Add file to downloaded file list
-                  EndIf
-                EndIf
-              EndIf
+        PrintNCol("Reading FTP Folder - "+FTP_Folder,13,0)
+        ftp_log+"Reading FTP Folder - "+FTP_Folder+#CRLF$
+        Delay(50)
+        ForEach FTP_Dir_Files()
+          FileName$=FTP_Dir_Files()
+          If FindString(FileName$,"Commodore Amiga - WHDLoad - Games") Or FindString(FileName$,"Commodore Amiga - WHDLoad - Demos") Or FindString(FileName$,"Commodore Amiga - WHDLoad - Magazines")
+            If FileSize(Dat_Folder)<>-2 : CreateDirectory(Dat_Folder) : EndIf
+            SetCurrentDirectory(Dat_Folder)
+            If FileSize(Dat_Folder+FileName$)=-1 ; If the dat file doesn't exist, download it 
+              FTPDownload(hConnect,FileName$,FileName$)
+              PrintN("Downloading : "+FileName$)
+              ftp_log+"Downloading : "+FileName$+#CRLF$
             EndIf
-          Wend
-          FinishFTPDirectory(#FTP)
-          SetFTPDirectory(#FTP,"/") 
-        EndIf
-      Else
-        PrintN("")
-        PrintNCol("Error - Cannot find FTP folder!",4,0)
+            AddElement(Dat_List())
+            Dat_List()=FileName$ ; Add file to downloaded file list
+          EndIf
+        Next
       EndIf
-      CloseFTP(#PB_All)  
+    Else
+      PrintN("")
+      PrintNCol("Error - Cannot find FTP folder!",4,0)
+      ftp_log+"Error - Cannot find FTP folder!"+#CRLF$
+      Delay(2000)  
+      FTPClose(hInternet)  
       PrintN("")
       PrintNCol("FTP connection closed.",14,0)
       ftp_log+"FTP connection closed."+#CRLF$
       
-    Else
-      
-      PrintN("")
-      PrintNCol("Error: Cannot connect to FTP!",4,0)
-      Delay(2000)
       Goto Proc_Exit
       
-    EndIf
+    EndIf   
     
-  CompilerEndIf  
+  Else
+    
+    PrintN("")
+    PrintNCol("Error - Cannot connect to FTP!",4,0)
+    ftp_log+"Error - Cannot connect to FTP!"+#CRLF$
+    Goto Proc_Exit
+    
+  EndIf
+  
+  FTPClose(hInternet)  
+  PrintN("")
+  PrintNCol("FTP connection closed.",14,0)
+  ftp_log+"FTP connection closed."+#CRLF$
   
   List_Files_Recursive(Dat_Folder,Scan_List(),"*.zip") ; Scan all the files in the dat folder
   
@@ -1922,11 +1775,7 @@ Procedure.b Download_Preview()
     
     oldgadgetlist=UseGadgetList(WindowID(#DOWNLOAD_WINDOW))
     
-    CompilerIf #PB_Compiler_OS=#PB_OS_Windows
-      ListIconGadget(#DOWNLOAD_LIST,0,0,300,400,"",280,#PB_ListIcon_FullRowSelect | #LVS_NOCOLUMNHEADER)
-    CompilerElse
-      ListIconGadget(#DOWNLOAD_LIST,0,0,300,400,"File List",280,#PB_ListIcon_FullRowSelect)
-    CompilerEndIf
+    ListIconGadget(#DOWNLOAD_LIST,0,0,300,400,"",280,#PB_ListIcon_FullRowSelect | #LVS_NOCOLUMNHEADER)
     
     ButtonGadget(#DOWNLOAD_YES,5,405,140,40,"Start Download")
     ButtonGadget(#DOWNLOAD_NO,155,405,140,40,"Cancel")
@@ -2013,231 +1862,133 @@ Procedure Download_FTP()
     
     If Download_Preview()
       
+      OpenConsole("FTP Download (Press 'Esc' to cancel download.)")
+      
       If FileSize(log_path)>-1 : DeleteFile(log_path) : EndIf
       If FileSize(WHD_Folder)<>-2 : CreateDirectory(WHD_Folder) : EndIf
       
       Protected system_menu.l
       
-      OpenConsole("FTP Download (Press 'Esc' to cancel download.)")
+      ConsoleHandle = GetConsoleWindow()
+      DeleteMenu_(GetSystemMenu_(ConsoleHandle, #False), 6, #MF_BYPOSITION)
+      SendMessage_(ConsoleHandle, #WM_NCPAINT, 1, 0)
       
-      CompilerIf #PB_Compiler_OS=#PB_OS_Windows
-        
-        ConsoleHandle = GetConsoleWindow()
-        DeleteMenu_(GetSystemMenu_(ConsoleHandle, #False), 6, #MF_BYPOSITION)
-        SendMessage_(ConsoleHandle, #WM_NCPAINT, 1, 0)
-        
-        hInternet=FTPInit()   
-        hConnect=FTPConnect(hInternet,FTP_Server,FTP_User,FTP_Pass,FTP_Port) 
-        
-        If hConnect
-          
-          PrintNCol("Connected to "+ftp_server+" on port:"+Str(ftp_port),2,0)
-          ftp_log+"Connected to "+ftp_server+" on port:"+Str(ftp_port)+#CRLF$
-          
-          If CreateFile(log_file, Home_Path+"ftp.log")
-            WriteString(log_file, ftp_log)
-            CloseFile(log_file)  
-          EndIf
-          
-          PrintN("")
-          PrintNCol("Opening FTP Folder - "+FTP_Folder,9,0)
-          ftp_log+"Opening FTP Folder - "+FTP_Folder+#CRLF$ 
-          
-          FTPSetDir(hConnect,FTP_Folder)
-          Delay(50)
-          
-          PrintN("")
-          
-          ForEach Down_List() 
-            
-            FTPSetDir(hConnect,Down_List()\Down_FTP_Folder) ; Change to FTP folder
-            Delay(50)
-            FTPSetDir(hConnect,Down_List()\Down_0toZ) ; Change to subfolder
-            Delay(50)
-            
-            If Use_Subfolder ; Create and add subfolder information to the downloads if selected
-              CreateDirectory(WHD_Folder+Down_List()\Down_Subfolder)
-              down_path=WHD_Folder+Down_List()\Down_Subfolder+"\"+Down_List()\Down_Name
-              If Use_0toZ_Folder 
-                CreateDirectory(WHD_Folder+Down_List()\Down_Subfolder+Down_List()\Down_0toZ) 
-                down_path=WHD_Folder+Down_List()\Down_Subfolder+Down_List()\Down_0toZ+"\"+Down_List()\Down_Name
-              EndIf
-            Else
-              down_path=WHD_Folder+Down_List()\Down_Name
-            EndIf   
-            
-            If FTPDownload(hConnect,Down_List()\Down_Name,down_path)  
-              If FileSize(down_path)>0
-                PrintN("Downloading ("+Str(ListIndex(Down_List()))+" of "+Str(ListSize(Down_List()))+") - "+Down_List()\Down_Name+" ("+Str(FileSize(down_path))+" bytes)")
-                ftp_log+"Downloaded - " + Down_List()\Down_Name+" ("+Str(FileSize(down_path))+" bytes)"+#CRLF$    
-              Else
-                ftp_log+"No data received for file "+Down_List()\Down_Name+#CRLF$
-                PrintNCol("No data received for file " + Down_List()\Down_Name,4,0)
-                DeleteFile(down_path)
-              EndIf
-            Else
-              ftp_log+"Error downloading "+Down_List()\Down_Name+#CRLF$
-              PrintNCol("Error downloading : " + Down_List()\Down_Name,4,0)   
-            EndIf 
-            
-            FTPSetDir(hConnect,"/")
-            Delay(50)
-            FTPSetDir(hConnect,FTP_Folder)   
-            Delay(50)
-            
-            If OpenFile(log_file, Home_Path+"ftp.log")
-              WriteString(log_file, ftp_log)
-              CloseFile(log_file)  
-            EndIf
-            
-            Keypressed$=Inkey()
-            
-            If Keypressed$=Chr(27)
-              PrintN("")
-              PrintNCol("*** Download Cancelled ***",4,0)
-              ftp_log+"*** Download Cancelled ***"+#CRLF$
-              Delay(1000)
-              cancel=#True
-              Break
-            EndIf
-            
-          Next 
-          
-          FTPClose(hInternet)
-          PrintN("")
-          PrintNCol("FTP connection closed.",14,0)
-          ftp_log+"FTP connection closed."+#CRLF$
-          
-        EndIf
-        
-        If cancel<>#True
-          PrintN("")
-          PrintNCol("Download complete.",2,0)
-          ftp_log+"Download complete."+#CRLF$
-        EndIf
-        
-        PrintN("")
-        PrintNCol("Please donate to the Turran FTP. The link is on the 'About' window.",2,0)
-        ftp_log+"Please donate to the Turran FTP.."+#CRLF$
-        Delay(3000)
-        
-      Else
-        
-        PrintNCol("Error: Cannot connect to FTP.",4,0)
-        ftp_log+"Error: Cannot connect to FTP."+#CRLF$
-        Delay(3000)
-        
-        Goto Proc_Exit
-        
-      EndIf 
+      hInternet=FTPInit()   
+      hConnect=FTPConnect(hInternet,FTP_Server,FTP_User,FTP_Pass,FTP_Port) 
       
-    CompilerElse
-      
-      PrintN("")
-      
-      If OpenFTP(#FTP,FTP_Server,FTP_User,FTP_Pass)
+      If hConnect
+        
         PrintNCol("Connected to "+ftp_server+" on port:"+Str(ftp_port),2,0)
         ftp_log+"Connected to "+ftp_server+" on port:"+Str(ftp_port)+#CRLF$
+        
         If CreateFile(log_file, Home_Path+"ftp.log")
           WriteString(log_file, ftp_log)
           CloseFile(log_file)  
         EndIf
         
-        Repeat
-          SetFTPDirectory(#FTP,FTP_Folder)
-          PrintN("")
-          PrintNCol("Opening FTP Folder - "+FTP_Folder+" Attempt:"+Str(Count),9,0)
-          ftp_log+"Opening FTP Folder - "+FTP_Folder+" Attempt:"+Str(Count)+#CRLF$
-          Delay(250)
-          Count+1
-          FileName$=GetFTPDirectory(#FTP)
-        Until RemoveString(FileName$,"/")=FTP_Folder Or Count=20
+        PrintN("")
+        PrintNCol("Opening FTP Folder - "+FTP_Folder,9,0)
+        ftp_log+"Opening FTP Folder - "+FTP_Folder+#CRLF$ 
         
-        If SetFTPDirectory(#FTP,FTP_Folder) 
+        FTPSetDir(hConnect,FTP_Folder)
+        Delay(50)
+        
+        PrintN("")
+        
+        ForEach Down_List() 
+          
+          FTPSetDir(hConnect,Down_List()\Down_FTP_Folder) ; Change to FTP folder
           Delay(50)
-          PrintN("")
-          PrintNCol("Opening FTP Folder - "+FTP_Folder,9,0)
-          PrintN("")
-          ForEach Down_List() 
-            SetFTPDirectory(#FTP,Down_List()\Down_FTP_Folder) ; Change to FTP folder
-            Delay(50)
-            SetFTPDirectory(#FTP,Down_List()\Down_0toZ) ; Change to subfolder
-            Delay(50)
-            If Use_Subfolder
-              CreateDirectory(WHD_Folder+Down_List()\Down_Subfolder)
-              down_path=WHD_Folder+Down_List()\Down_Subfolder+"/"+Down_List()\Down_Name
-              If Use_0toZ_Folder 
-                CreateDirectory(WHD_Folder+Down_List()\Down_Subfolder+Down_List()\Down_0toZ) 
-                down_path=WHD_Folder+Down_List()\Down_Subfolder+Down_List()\Down_0toZ+"/"+Down_List()\Down_Name
-              EndIf
-            Else
-              down_path=WHD_Folder+Down_List()\Down_Name
-            EndIf   
-            
-            If ReceiveFTPFile(#FTP,Down_List()\Down_Name,down_path,#False)  
-              If FileSize(down_path)>0
-                PrintN("Downloading ("+Str(ListIndex(Down_List()))+" of "+Str(ListSize(Down_List()))+") - "+Down_List()\Down_Name+" ("+Str(FileSize(down_path))+" bytes)")
-                ftp_log+"Downloaded - " + Down_List()\Down_Name+" ("+Str(FileSize(down_path))+" bytes)"+#CRLF$    
-              Else
-                ftp_log+"No data received for file "+Down_List()\Down_Name+". Retrying DOS FTP after other downloads..."+#CRLF$
-                PrintNCol("No data received for file " + Down_List()\Down_Name+". Retrying with DOS FTP after other downloads...",4,0)
-                DeleteFile(down_path)
-              EndIf
-            Else
-              ftp_log+"Error downloading "+Down_List()\Down_Name+#CRLF$
-              PrintNCol("Error downloading : " + Down_List()\Down_Name,4,0)   
-            EndIf 
-            FinishFTPDirectory(#FTP)
-            SetFTPDirectory(#FTP,"/")
-            SetFTPDirectory(#FTP,ftp_Folder)   
-            If OpenFile(log_file, Home_Path+"ftp.log")
-              WriteString(log_file, ftp_log)
-              CloseFile(log_file)  
+          FTPSetDir(hConnect,Down_List()\Down_0toZ) ; Change to subfolder
+          Delay(50)
+          
+          If Use_Subfolder ; Create and add subfolder information to the downloads if selected
+            CreateDirectory(WHD_Folder+Down_List()\Down_Subfolder)
+            down_path=WHD_Folder+Down_List()\Down_Subfolder+"\"+Down_List()\Down_Name
+            If Use_0toZ_Folder 
+              CreateDirectory(WHD_Folder+Down_List()\Down_Subfolder+Down_List()\Down_0toZ) 
+              down_path=WHD_Folder+Down_List()\Down_Subfolder+Down_List()\Down_0toZ+"\"+Down_List()\Down_Name
             EndIf
-            Keypressed$=Inkey()
-            If Keypressed$=Chr(27)
-              PrintN("")
-              PrintNCol("*** Download Cancelled ***",4,0)
-              ftp_log+"*** Download Cancelled ***"+#CRLF$
-              Delay(1000)
-              cancel=#True
-              Break
+          Else
+            down_path=WHD_Folder+Down_List()\Down_Name
+          EndIf   
+          
+          If FTPDownload(hConnect,Down_List()\Down_Name,down_path)  
+            If FileSize(down_path)>0
+              PrintN("Downloading ("+Str(ListIndex(Down_List()))+" of "+Str(ListSize(Down_List()))+") - "+Down_List()\Down_Name+" ("+Str(FileSize(down_path))+" bytes)")
+              ftp_log+"Downloaded - " + Down_List()\Down_Name+" ("+Str(FileSize(down_path))+" bytes)"+#CRLF$    
+            Else
+              ftp_log+"No data received for file "+Down_List()\Down_Name+#CRLF$
+              PrintNCol("No data received for file " + Down_List()\Down_Name,4,0)
+              DeleteFile(down_path)
             EndIf
-          Next 
-          CloseFTP(#FTP)
-          PrintN("")
-          PrintNCol("FTP connection closed.",14,0)
-          ftp_log+"FTP connection closed."+#CRLF$
-        EndIf
+          Else
+            ftp_log+"Error downloading "+Down_List()\Down_Name+#CRLF$
+            PrintNCol("Error downloading : " + Down_List()\Down_Name,4,0)   
+          EndIf 
+          
+          FTPSetDir(hConnect,"/")
+          Delay(50)
+          FTPSetDir(hConnect,FTP_Folder)   
+          Delay(50)
+          
+          If OpenFile(log_file, Home_Path+"ftp.log")
+            WriteString(log_file, ftp_log)
+            CloseFile(log_file)  
+          EndIf
+          
+          Keypressed$=Inkey()
+          
+          If Keypressed$=Chr(27)
+            PrintN("")
+            PrintNCol("*** Download Cancelled ***",4,0)
+            ftp_log+"*** Download Cancelled ***"+#CRLF$
+            Delay(1000)
+            cancel=#True
+            Break
+          EndIf
+          
+        Next 
         
-        If cancel<>#True
-          PrintN("")
-          PrintNCol("Download complete.",2,0)
-          ftp_log+"Download complete."+#CRLF$
-        EndIf
-        
+        FTPClose(hInternet)
+        PrintN("")
+        PrintNCol("FTP connection closed.",14,0)
+        ftp_log+"FTP connection closed."+#CRLF$
         PrintN("")
         PrintNCol("Please donate to the Turran FTP. The link is on the 'About' window.",2,0)
         ftp_log+"Please donate to the Turran FTP.."+#CRLF$
         Delay(3000)
+        CloseConsole()
+        
       Else
+        
         PrintNCol("Error: Cannot connect to FTP.",4,0)
         ftp_log+"Error: Cannot connect to FTP."+#CRLF$
         Delay(3000)
-        Goto Proc_Exit
-      EndIf 
+        CloseConsole()
+        
+      EndIf
       
-    CompilerEndIf
-  
-    Proc_Exit:
+      If cancel<>#True
+        PrintN("")
+        PrintNCol("Download complete.",2,0)
+        ftp_log+"Download complete."+#CRLF$
+        PrintN("")
+        PrintNCol("Please donate to the Turran FTP.",2,0)
+        ftp_log+"Please donate to the Turran FTP."+#CRLF$
+        Delay(3000)
+        CloseConsole()
+      EndIf
+      
+    EndIf 
     
-    CloseConsole()
+    Proc_Exit:
     
     If CreateFile(log_file, Home_Path+"ftp.log")
       WriteString(log_file, ftp_log)
       CloseFile(log_file)  
     EndIf
-        
+    
   Else
     
     MessageRequester("Information","Nothing to download!",#PB_MessageRequester_Ok|#PB_MessageRequester_Info)
@@ -2318,7 +2069,7 @@ Procedure Update_Files()
     EndIf
     
   Next
-
+  
   List_Files_Recursive_Size(WHD_Folder,File_List_Size(),"*.*")
   
   ForEach File_List_Size()
@@ -2376,7 +2127,7 @@ Procedure Update_Files()
   SetWindowTitle(#DELETE_WINDOW,"Remove Un-Needed Files ("+Str(ListSize(Delete_List()))+" files)")
   
   Resume_Window(#DELETE_WINDOW)
-      
+  
   Repeat
     
     Event=WaitWindowEvent()
@@ -2452,7 +2203,7 @@ Procedure Update_Files()
           EndIf
           SetWindowTitle(#DELETE_WINDOW,"Remove Un-Needed Files ("+Str(ListSize(Delete_List()))+" files)")
         EndIf
-              
+        
     EndSelect
     
   ForEver
@@ -2519,13 +2270,13 @@ Procedure Scrape_Data()
 EndProcedure
 
 Procedure Draw_List()
-    
+  
   Pause_Gadget(#MAIN_LIST)
   
   ClearGadgetItems(#MAIN_LIST)
   
   Filter_List()
-
+  
   ForEach Filtered_List()
     Count=ListIndex(Filtered_List())
     SelectElement(Game_List(),Filtered_List())
@@ -2533,9 +2284,9 @@ Procedure Draw_List()
     If Game_List()\File_Available=#True : SetGadgetItemColor(#MAIN_LIST,Count,#PB_Gadget_FrontColor,$00008800) : EndIf 
     If Mod(Count,2)=0 : SetGadgetItemColor(#MAIN_LIST,count,#PB_Gadget_BackColor,$eeeeee) : EndIf
   Next
-      
+  
   While WindowEvent() : Wend
-
+  
   Update_Title()
   
   SetActiveGadget(#MAIN_LIST)
@@ -2547,13 +2298,11 @@ Procedure Draw_List()
   Update_Statusbar()
   Resume_Gadget(#MAIN_LIST)
   
-  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
-    If GetWindowLongPtr_(GadgetID(#MAIN_LIST), #GWL_STYLE) & #WS_VSCROLL
-      SetGadgetItemAttribute(#MAIN_LIST,1,#PB_ListIcon_ColumnWidth,422)
-    Else
-      SetGadgetItemAttribute(#MAIN_LIST,1,#PB_ListIcon_ColumnWidth,440)
-    EndIf
-  CompilerEndIf
+  If GetWindowLongPtr_(GadgetID(#MAIN_LIST), #GWL_STYLE) & #WS_VSCROLL
+    SetGadgetItemAttribute(#MAIN_LIST,1,#PB_ListIcon_ColumnWidth,422)
+  Else
+    SetGadgetItemAttribute(#MAIN_LIST,1,#PB_ListIcon_ColumnWidth,440)
+  EndIf
   
 EndProcedure
 
@@ -2584,20 +2333,15 @@ Procedure About_Window()
   output$+#CRLF$
   output$+"   A downloader for Retroplay's WHDLoad Archives!"+#CRLF$
   output$+#CRLF$
-
+  
   output$+"   ----------------------------------------------"+#CRLF$
-
+  
   output$+#CRLF$
   output$+"If you use this tool, please consider donating towards the running costs of the Turran file server. I'm sure that Turran will be most appreciative! The link is below..."+#CRLF$ 
   
-  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
-    StringGadget(#ABOUT_STRING,0,0,340,270,output$, #PB_String_ReadOnly | #ES_MULTILINE | #ESB_DISABLE_LEFT|#ESB_DISABLE_RIGHT)
-    SetWindowLongPtr_(GadgetID(#ABOUT_STRING),#GWL_EXSTYLE,0)
-    SetWindowPos_(GadgetID(#ABOUT_STRING),0,0,0,0,0,#SWP_NOMOVE | #SWP_NOSIZE | #SWP_FRAMECHANGED)
-  CompilerElse
-    EditorGadget(#ABOUT_STRING,0,0,340,270,#PB_Editor_ReadOnly|#PB_Editor_WordWrap)
-    SetGadgetText(output$)
-  CompilerEndIf
+  StringGadget(#ABOUT_STRING,0,0,340,270,output$, #PB_String_ReadOnly | #ES_MULTILINE | #ESB_DISABLE_LEFT|#ESB_DISABLE_RIGHT)
+  SetWindowLongPtr_(GadgetID(#ABOUT_STRING),#GWL_EXSTYLE,0)
+  SetWindowPos_(GadgetID(#ABOUT_STRING),0,0,0,0,0,#SWP_NOMOVE | #SWP_NOSIZE | #SWP_FRAMECHANGED)
   
   SetGadgetFont(#ABOUT_STRING,FontID(#HELP_FONT))
   
@@ -2612,14 +2356,7 @@ Procedure About_Window()
     Event=WaitWindowEvent()
     If EventGadget()=#ABOUT_LINK And EventType()=#PB_EventType_LeftClick
       path="https://www.paypal.com/donate/?cmd=_donations&business=eab@grandis.nu&lc=US&item_name=Donation+to+EAB+FTP&no_note=0&cn=&curency_code=USD&bn=PP-DonationsBF:btn_donateCC_LG.gif:NonHosted"
-      CompilerSelect #PB_Compiler_OS
-        CompilerCase #PB_OS_Windows
-          RunProgram(path,"","")
-        CompilerCase #PB_OS_Linux
-          RunProgram("sensible-browser",#DOUBLEQUOTE$+Path+#DOUBLEQUOTE$+" &","")
-        CompilerCase #PB_OS_MacOS
-          RunProgram("open",#DOUBLEQUOTE$+Path+#DOUBLEQUOTE$,"")
-      CompilerEndSelect
+      RunProgram(path,"","")
     EndIf
     If EventWindow()=#ABOUT_WINDOW And Event()=#PB_Event_CloseWindow
       UseGadgetList(oldgadgetlist)
@@ -2644,12 +2381,8 @@ Procedure Help_Window()
   
   Pause_Window(#HELP_WINDOW)
   
-  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
-    StringGadget(#HELP_EDITOR,0,0,500,600,"", #PB_String_ReadOnly|#ES_MULTILINE | #ES_AUTOVSCROLL|#WS_VSCROLL|#ESB_DISABLE_LEFT|#ESB_DISABLE_RIGHT)
-  CompilerElse
-    EditorGadget(#HELP_EDITOR,0,0,500,600,#PB_Editor_ReadOnly|#PB_Editor_WordWrap)
-  CompilerEndIf
-
+  StringGadget(#HELP_EDITOR,0,0,500,600,"", #PB_String_ReadOnly|#ES_MULTILINE | #ES_AUTOVSCROLL|#WS_VSCROLL|#ESB_DISABLE_LEFT|#ESB_DISABLE_RIGHT)
+  
   SetGadgetColor(#HELP_EDITOR,#PB_Gadget_BackColor,#White)
   
   SetGadgetFont(#HELP_EDITOR,FontID(#HELP_FONT))
@@ -2953,11 +2686,7 @@ Procedure Main_Window()
   
   Pause_Window(#MAIN_WINDOW)
   
-  CompilerIf #PB_Compiler_OS=#PB_OS_Windows
-    ListIconGadget(#MAIN_LIST,5,5,445,575,"",0,#PB_ListIcon_FullRowSelect | #LVS_NOCOLUMNHEADER)
-  CompilerElse
-    ListIconGadget(#MAIN_LIST,5,5,445,575,"File List",0,#PB_ListIcon_FullRowSelect)
-  CompilerEndIf
+  ListIconGadget(#MAIN_LIST,5,5,445,575,"",0,#PB_ListIcon_FullRowSelect | #LVS_NOCOLUMNHEADER)
   
   SetGadgetFont(#MAIN_LIST,FontID(#MAIN_FONT))
   
@@ -3029,7 +2758,7 @@ Procedure Main_Window()
   EndIf
   
   FrameGadget(#PB_Any,455,340,320,240,"Filter")
-   
+  
   FrameGadget(#PB_Any,460,355,150,100,"System")
   
   CheckBoxGadget(#AMIGA_OPTION,465,375,60,25,"Amiga")
@@ -3075,7 +2804,7 @@ Procedure Main_Window()
   
   ButtonGadget(#SCAN_BUTTON,785,20,80,30,"Load Data")
   ButtonGadget(#DOWNLOAD_BUTTON,785,55,80,30,"Download")
-
+  
   FrameGadget(#PB_Any,780,95,90,195,"Lists")
   
   ButtonGadget(#LIST_EDIT_BUTTON,785,115,80,30,"Edit List")  
@@ -3085,7 +2814,7 @@ Procedure Main_Window()
   ButtonGadget(#CLEAR_EDITS_BUTTON,785,255,80,30,"Clear Edits")
   
   FrameGadget(#PB_Any,780,295,90,95,"Data")
-
+  
   ButtonGadget(#CLEANUP_BUTTON,785,315,80,30,"Clean Files") 
   ButtonGadget(#CLEAR_LIST_BUTTON,785,350,80,30,"Clear Data")   
   
@@ -3128,7 +2857,7 @@ Procedure Main_Window()
   SetGadgetState(#POLISH_OPTION,Filter(0)\F_Polish)
   SetGadgetState(#SPANISH_OPTION,Filter(0)\F_Spanish)
   SetGadgetState(#SWEDISH_OPTION,Filter(0)\F_Swedish)  
-    
+  
   Disable_Gadgets(#True) 
   Set_List_Gadgets(#True)
   DisableGadget(#CLEAR_EDITS_BUTTON,#True)
@@ -3142,14 +2871,6 @@ EndProcedure
 ;- ############### Program Startup
 
 UseZipPacker()
-
-CompilerSelect #PB_Compiler_OS 
-  CompilerCase #PB_OS_Linux
-    #G_TYPE_STRING = 64
-    ImportC ""
-      g_object_get_property(*widget.GtkWidget, property.p-utf8, *gval)
-    EndImport
-CompilerEndSelect
 
 LoadFont(#HELP_FONT,"Consolas",9,#PB_Font_HighQuality)
 LoadFont(#MAIN_FONT,GetDefaultFontName(),9,#PB_Font_HighQuality)
@@ -3218,14 +2939,7 @@ Repeat
     Case #DONATE_BUTTON
       If  EventType()=#PB_EventType_LeftClick
         path="https://www.paypal.com/donate/?cmd=_donations&business=eab@grandis.nu&lc=US&item_name=Donation+to+EAB+FTP&no_note=0&cn=&curency_code=USD&bn=PP-DonationsBF:btn_donateCC_LG.gif:NonHosted"
-        CompilerSelect #PB_Compiler_OS
-          CompilerCase #PB_OS_Windows
-            RunProgram(path,"","")
-          CompilerCase #PB_OS_Linux
-            RunProgram("sensible-browser",#DOUBLEQUOTE$+Path+#DOUBLEQUOTE$+" &","")
-          CompilerCase #PB_OS_MacOS
-            RunProgram("open",#DOUBLEQUOTE$+Path+#DOUBLEQUOTE$,"")
-        CompilerEndSelect
+        RunProgram(path,"","")
       EndIf
       
     Case #MAIN_LIST
@@ -3265,12 +2979,12 @@ Repeat
       Else
         MessageRequester("Error","This folder is created on"+Chr(10)+"your first download.",#PB_MessageRequester_Ok|#PB_MessageRequester_Error)
       EndIf
-           
+      
     Case #WHD_GAME_STRING
       If Type=#PB_EventType_Change
         WHD_Game_Folder=GetGadgetText(#WHD_GAME_STRING)
       EndIf
-            
+      
     Case #WHD_OPEN_DEMO_BUTTON
       Path=WHD_Folder+WHD_Demo_Folder+"\"
       If FileSize(Path)=-2
@@ -3380,7 +3094,7 @@ Repeat
           Draw_List()
         EndIf
       EndIf
-            
+      
     Case #DOWNLOAD_BUTTON 
       Download_FTP()
       Update_File_List()
@@ -3539,7 +3253,7 @@ Repeat
     Case #FAST_OPTION
       Filter(0)\F_Fast=GetGadgetState(#FAST_OPTION)
       Draw_List()
-          
+      
     Case #ARCADIA_OPTION
       Filter(0)\F_Arcadia=GetGadgetState(#ARCADIA_OPTION)
       Draw_List()
@@ -3602,14 +3316,14 @@ Repeat
     If EventWindow()=#MAIN_WINDOW : Break : EndIf
     If EventWindow()=#HELP_WINDOW : CloseWindow(#HELP_WINDOW) : EndIf
   EndIf
-    
+  
 ForEver 
 
 End
 ; IDE Options = PureBasic 6.00 Beta 2 (Windows - x64)
-; CursorPosition = 1470
-; FirstLine = 474
-; Folding = AAAAAA---wAw
+; CursorPosition = 3299
+; FirstLine = 847
+; Folding = AAAAAAAAw
 ; Optimizer
 ; EnableXP
 ; DPIAware
