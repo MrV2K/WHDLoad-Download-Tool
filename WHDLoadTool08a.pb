@@ -96,9 +96,10 @@
 ; VERSION INFO v0.8a 
 ;============================================
 ;
-; Fixed old dat files not being deleted in load data procedure.
+; Fixed old dat files not being deleted in Scan FTP procedure.
 ; Cleaned up unneeded variables and lists from the FTP download procedures.
 ; Fixed console actions on Download FTP procedure
+; Tweaked FTP procedures to use real FTP variables rather than 1 & 0.
 ;
 ;============================================
 ; To Do List
@@ -1527,11 +1528,11 @@ EndProcedure
 ;- ############### FTP & Data
 
 Procedure.l FTPInit() 
-  ProcedureReturn InternetOpen_("FTP",1,"","",0) 
+  ProcedureReturn InternetOpen_("FTP",#INTERNET_OPEN_TYPE_DIRECT,"","",0) 
 EndProcedure 
 
 Procedure.l FTPConnect(hInternet,Server.s,User.s,Password.s,port.l) 
-  ProcedureReturn InternetConnect_(hInternet,Server,port,User,Password,1,0,0) 
+  ProcedureReturn InternetConnect_(hInternet,Server,port,User,Password,#INTERNET_SERVICE_FTP,0,0) 
 EndProcedure 
 
 Procedure.l FTPDir(hConnect.l, List FTPFiles.s()) 
@@ -1561,7 +1562,7 @@ Procedure.l FTPCreateDir(hConnect.l,Dir.s)
 EndProcedure 
 
 Procedure.l FTPDownload(hConnect.l,Source.s,Dest.s) 
-  ProcedureReturn FtpGetFile_(hConnect,Source,Dest,0,0,0,0) 
+  ProcedureReturn FtpGetFile_(hConnect,Source,Dest,0,#FILE_ATTRIBUTE_NORMAL,#FTP_TRANSFER_TYPE_BINARY,0) 
 EndProcedure 
 
 Procedure.l FTPUpload(hConnect.l,Source.s,Dest.s) 
@@ -3321,9 +3322,9 @@ ForEver
 
 End
 ; IDE Options = PureBasic 6.00 Beta 3 (Windows - x64)
-; CursorPosition = 3299
-; FirstLine = 894
-; Folding = AAAAAAAAw
+; CursorPosition = 98
+; FirstLine = 79
+; Folding = AAAAAgRBw
 ; Optimizer
 ; EnableXP
 ; DPIAware
