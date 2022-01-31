@@ -3320,28 +3320,36 @@ Repeat
 ForEver 
 
 End
-; IDE Options = PureBasic 6.00 Beta 2 (Windows - x64)
+; IDE Options = PureBasic 6.00 Beta 3 (Windows - x64)
 ; CursorPosition = 3299
-; FirstLine = 847
+; FirstLine = 894
 ; Folding = AAAAAAAAw
 ; Optimizer
 ; EnableXP
 ; DPIAware
 ; UseIcon = boing.ico
-; Executable = WHDTool_x86.exe
-; Compiler = PureBasic 6.00 Beta 2 - C Backend (Windows - x86)
+; Executable = WHDTool_x64.exe
+; Compiler = PureBasic 6.00 Beta 3 - C Backend (Windows - x64)
 ; Debugger = Standalone
 ; Warnings = Display
 ; IncludeVersionInfo
-; VersionField0 = 0.0.0.7
-; VersionField1 = 0.0.0.7
+; VersionField0 = 0.0.0.8
+; VersionField1 = 0.0.0.8
 ; VersionField2 = MrV2K
 ; VersionField3 = WHDLoad Download Tool
-; VersionField4 = 0.7a
-; VersionField5 = 0.7a
+; VersionField4 = 0.8a
+; VersionField5 = 0.8a
 ; VersionField6 = A WHDLoad downloader.
 ; VersionField7 = WHDTool
-; VersionField8 = WHDTool_xxx.exe
+; VersionField8 = WHDToolxxx.exe
 ; VersionField9 = 2022 Paul Vince (MrV2k)
+; VersionField10 = -
+; VersionField11 = -
+; VersionField12 = -
+; VersionField13 = -
+; VersionField14 = -
 ; VersionField15 = VOS_NT
 ; VersionField16 = VFT_APP
+; VersionField21 = -
+; VersionField22 = -
+; VersionField23 = -
