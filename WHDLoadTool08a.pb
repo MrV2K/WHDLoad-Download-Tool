@@ -98,8 +98,10 @@
 ;
 ; Fixed old dat files not being deleted in Scan FTP procedure.
 ; Cleaned up unneeded variables and lists from the FTP download procedures.
-; Fixed console actions on Download FTP procedure
+; Fixed console actions on Download FTP procedure.
 ; Tweaked FTP procedures to use real FTP variables rather than 1 & 0.
+; Minor speed up when processing strings.
+; Added button that makes a new folder or archives based on your filter selections.
 ;
 ;============================================
 ; To Do List
@@ -181,6 +183,7 @@ Enumeration
   #HELP_BUTTON
   #ABOUT_BUTTON
   #CLEAR_LANG_BUTTON
+  #MAKE_FOLDER_BUTTON
   
   #LIST_APPEND_BUTTON
   #LIST_LOAD_BUTTON
@@ -310,6 +313,7 @@ Structure Down_Data
   Down_Name.s
   Down_0toZ.s
   Down_FTP_Folder.s
+  Down_Path.s
 EndStructure
 
 Structure Own_Data
@@ -683,6 +687,7 @@ Procedure Disable_Gadgets(bool.b)
   DisableGadget(#RESET_BUTTON,bool)
   
   DisableGadget(#DOWNLOAD_BUTTON,bool)
+  DisableGadget(#MAKE_FOLDER_BUTTON,bool)
   
   DisableGadget(#LIST_EDIT_BUTTON,bool)
   DisableGadget(#LIST_LOAD_BUTTON,bool)
@@ -740,10 +745,8 @@ Procedure List_Files_Recursive(Dir.s, List Files.s(), Extension.s) ; <------> Ad
   
   Protected Folder_LIST
   
-  ;ClearList(Directory_List())
-  
-  If Right(Dir, 1) <> "\"
-    Dir + "\"
+  If Right(Dir, 1) <> Chr(92)
+    Dir + Chr(92)
   EndIf
   
   If ExamineDirectory(Folder_LIST, Dir, Extension)
@@ -780,10 +783,8 @@ Procedure List_Files_Recursive_Size(Dir.s, List Files.File_Data(), Extension.s) 
   
   Protected Folder_LIST
   
-  ;ClearList(Directory_List())
-  
-  If Right(Dir, 1) <> "\"
-    Dir + "\"
+  If Right(Dir, 1) <> Chr(92)
+    Dir + Chr(92)
   EndIf
   
   If ExamineDirectory(Folder_LIST, Dir, Extension)
@@ -995,15 +996,15 @@ Procedure Filter_List()
     EndIf
     If Use_Subfolder=#True
       If Use_0toZ_Folder=#True
-        If Game_List()\File_Type="Game" And Game_List()\File_BETA=#False : File_Map(WHD_Folder+WHD_Game_Folder+"\"+Game_List()\File_SubFolder+"\"+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
-        If Game_List()\File_Type="Demo" : File_Map(WHD_Folder+WHD_Demo_Folder+"\"+Game_List()\File_SubFolder+"\"+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
-        If Game_List()\File_Type="Game" And Game_List()\File_BETA=#True : File_Map(WHD_Folder+WHD_Beta_Folder+"\"+Game_List()\File_SubFolder+"\"+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
-        If Game_List()\File_Type="Magazine" : File_Map(WHD_Folder+WHD_Mags_Folder+"\"+Game_List()\File_SubFolder+"\"+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
+        If Game_List()\File_Type="Game" And Game_List()\File_BETA=#False : File_Map(WHD_Folder+WHD_Game_Folder+Chr(92)+Game_List()\File_SubFolder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
+        If Game_List()\File_Type="Demo" : File_Map(WHD_Folder+WHD_Demo_Folder+Chr(92)+Game_List()\File_SubFolder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
+        If Game_List()\File_Type="Game" And Game_List()\File_BETA=#True : File_Map(WHD_Folder+WHD_Beta_Folder+Chr(92)+Game_List()\File_SubFolder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
+        If Game_List()\File_Type="Magazine" : File_Map(WHD_Folder+WHD_Mags_Folder+Chr(92)+Game_List()\File_SubFolder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
       Else
-        If Game_List()\File_Type="Game" : File_Map(WHD_Folder+WHD_Game_Folder+"\"+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
-        If Game_List()\File_Type="Demo" : File_Map(WHD_Folder+WHD_Demo_Folder+"\"+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
-        If Game_List()\File_Type="Game" And Game_List()\File_BETA=#True : File_Map(WHD_Folder+WHD_Beta_Folder+"\"+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
-        If Game_List()\File_Type="Magazine" : File_Map(WHD_Folder+WHD_Mags_Folder+"\"+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
+        If Game_List()\File_Type="Game" : File_Map(WHD_Folder+WHD_Game_Folder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
+        If Game_List()\File_Type="Demo" : File_Map(WHD_Folder+WHD_Demo_Folder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
+        If Game_List()\File_Type="Game" And Game_List()\File_BETA=#True : File_Map(WHD_Folder+WHD_Beta_Folder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
+        If Game_List()\File_Type="Magazine" : File_Map(WHD_Folder+WHD_Mags_Folder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
       EndIf
     EndIf  
   Next
@@ -1047,7 +1048,7 @@ Procedure Filter_List()
   Avail_Games=0  
   
   ForEach File_List()  
-    Count=CountString(File_List(),"\")
+    Count=CountString(File_List(),Chr(92))
     If FindMapElement(File_Map(),File_List())
       SelectElement(Game_List(),File_Map())
       Game_List()\File_Available=#True
@@ -1821,6 +1822,108 @@ Procedure.b Download_Preview()
   
 EndProcedure
 
+Procedure Make_Folder()
+  
+  Protected Out_Path.s, Out_Folder.s, In_Path.s
+  Protected conHandle.l
+  Protected cancel.b
+  Protected Keypressed$
+  
+  ClearList(Down_List())
+
+  Out_Folder=PathRequester("Select a folder",Home_Path)
+  
+  If Out_Folder<>""
+    
+    ForEach Filtered_List()
+      SelectElement(Game_List(),Filtered_List())
+      If Game_List()\File_Available=#True ; if file not available locally add to downlist
+        AddElement(Down_List())
+        Down_List()\Down_Name=Game_List()\File_Name
+        Down_List()\Down_0toZ=Game_List()\File_SubFolder
+        Down_List()\Down_Path=Game_List()\File_Path
+        If Game_List()\File_Type="Game" And Game_List()\File_BETA<>#True
+          Down_List()\Down_Subfolder=WHD_Game_Folder+Chr(92)
+          Down_List()\Down_FTP_Folder=WHD_Folder+WHD_Game_Folder
+        EndIf 
+        If Game_List()\File_Type="Game" And Game_List()\File_BETA=#True
+          Down_List()\Down_Subfolder=WHD_Beta_Folder+Chr(92)
+          Down_List()\Down_FTP_Folder=WHD_Folder+WHD_Beta_Folder
+        EndIf 
+        If Game_List()\File_Type="Demo" 
+          Down_List()\Down_Subfolder=WHD_Demo_Folder+Chr(92)
+          Down_List()\Down_FTP_Folder=WHD_Folder+WHD_Demo_Folder
+        EndIf          
+        If Game_List()\File_Type="Magazine" 
+          Down_List()\Down_Subfolder=WHD_Mags_Folder+Chr(92)
+          Down_List()\Down_FTP_Folder=WHD_Folder+WHD_Mags_Folder
+        EndIf 
+      EndIf
+    Next 
+    
+    If ListSize(Down_List())>0    
+      
+      OpenConsole("Make Game Folder (Press 'Esc' to cancel download.)")
+      
+      Protected system_menu.l
+      
+      ConsoleHandle = GetConsoleWindow()
+      DeleteMenu_(GetSystemMenu_(ConsoleHandle, #False), 6, #MF_BYPOSITION)
+      SendMessage_(ConsoleHandle, #WM_NCPAINT, 1, 0)
+      
+      ForEach Down_List()        
+        If Use_Subfolder ; Create and add subfolder information to the downloads if selected
+          CreateDirectory(Out_Folder+Down_List()\Down_Subfolder)
+          Out_Path=Out_Folder+Down_List()\Down_Subfolder+Chr(92)+Down_List()\Down_Name
+          If Use_0toZ_Folder 
+            CreateDirectory(Out_Folder+Down_List()\Down_Subfolder+Down_List()\Down_0toZ) 
+            Out_Path=Out_Folder+Down_List()\Down_Subfolder+Down_List()\Down_0toZ+Chr(92)+Down_List()\Down_Name
+          EndIf
+        Else
+          Out_Path=Out_Folder+Down_List()\Down_Name
+        EndIf   
+        
+        PrintN("Copying "+Down_List()\Down_Name+" ("+Str(ListIndex(Down_List())+1)+" of "+Str(ListSize(Down_List())))
+                
+        CopyFile(Down_List()\Down_Path+"\"+Down_List()\Down_Name,Out_Path)
+        
+        Keypressed$=Inkey()
+        
+        If Keypressed$=Chr(27)
+          PrintN("")
+          PrintNCol("*** Download Cancelled ***",4,0)
+          Delay(1000)
+          cancel=#True
+          Break
+        EndIf
+        
+      Next 
+            
+    Else
+      
+      MessageRequester("Error","No output folder.",#PB_MessageRequester_Ok|#PB_MessageRequester_Warning)
+      
+    EndIf
+    
+    If cancel<>#True
+      PrintN("")
+      PrintNCol("File copy complete.",2,0)
+      Delay(3000)
+      CloseConsole()
+    EndIf
+    
+  Else
+    
+    MessageRequester("Information","Nothing to copy!",#PB_MessageRequester_Ok|#PB_MessageRequester_Info)
+    
+  EndIf
+  
+  SetCurrentDirectory(Home_Path)
+  
+  ClearList(Down_List())
+  
+EndProcedure
+
 Procedure Download_FTP()
   
   Protected down_path.s, log_file.i
@@ -1841,19 +1944,19 @@ Procedure Download_FTP()
       Down_List()\Down_Name=Game_List()\File_Name
       Down_List()\Down_0toZ=Game_List()\File_SubFolder
       If Game_List()\File_Type="Game" And Game_List()\File_BETA<>#True
-        Down_List()\Down_Subfolder=WHD_Game_Folder+"\"
+        Down_List()\Down_Subfolder=WHD_Game_Folder+Chr(92)
         Down_List()\Down_FTP_Folder=FTP_Game_Folder
       EndIf 
       If Game_List()\File_Type="Game" And Game_List()\File_BETA=#True
-        Down_List()\Down_Subfolder=WHD_Beta_Folder+"\"
+        Down_List()\Down_Subfolder=WHD_Beta_Folder+Chr(92)
         Down_List()\Down_FTP_Folder=FTP_Beta_Folder
       EndIf 
       If Game_List()\File_Type="Demo" 
-        Down_List()\Down_Subfolder=WHD_Demo_Folder+"\"
+        Down_List()\Down_Subfolder=WHD_Demo_Folder+Chr(92)
         Down_List()\Down_FTP_Folder=FTP_Demo_Folder
       EndIf          
       If Game_List()\File_Type="Magazine" 
-        Down_List()\Down_Subfolder=WHD_Mags_Folder+"\"
+        Down_List()\Down_Subfolder=WHD_Mags_Folder+Chr(92)
         Down_List()\Down_FTP_Folder=FTP_Mags_Folder
       EndIf 
     EndIf
@@ -1905,10 +2008,10 @@ Procedure Download_FTP()
           
           If Use_Subfolder ; Create and add subfolder information to the downloads if selected
             CreateDirectory(WHD_Folder+Down_List()\Down_Subfolder)
-            down_path=WHD_Folder+Down_List()\Down_Subfolder+"\"+Down_List()\Down_Name
+            down_path=WHD_Folder+Down_List()\Down_Subfolder+Chr(92)+Down_List()\Down_Name
             If Use_0toZ_Folder 
               CreateDirectory(WHD_Folder+Down_List()\Down_Subfolder+Down_List()\Down_0toZ) 
-              down_path=WHD_Folder+Down_List()\Down_Subfolder+Down_List()\Down_0toZ+"\"+Down_List()\Down_Name
+              down_path=WHD_Folder+Down_List()\Down_Subfolder+Down_List()\Down_0toZ+Chr(92)+Down_List()\Down_Name
             EndIf
           Else
             down_path=WHD_Folder+Down_List()\Down_Name
@@ -2021,27 +2124,27 @@ Procedure Update_Files()
       If Use_Subfolder=#False: Delete_Map(Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
       If Use_Subfolder=#True
         If Use_0toZ_Folder=#False 
-          If Game_List()\File_Type="Game" And Game_List()\File_BETA=#False  : Delete_Map(WHD_Game_Folder+"\"+Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
-          If Game_List()\File_Type="Demo" : Delete_Map(WHD_Demo_Folder+"\"+Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
-          If Game_List()\File_Type="Game"  And Game_List()\File_BETA=#True : Delete_Map(WHD_Beta_Folder+"\"+Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
-          If Game_List()\File_Type="Magazine" : Delete_Map(WHD_Mags_Folder+"\"+Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
+          If Game_List()\File_Type="Game" And Game_List()\File_BETA=#False  : Delete_Map(WHD_Game_Folder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
+          If Game_List()\File_Type="Demo" : Delete_Map(WHD_Demo_Folder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
+          If Game_List()\File_Type="Game"  And Game_List()\File_BETA=#True : Delete_Map(WHD_Beta_Folder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
+          If Game_List()\File_Type="Magazine" : Delete_Map(WHD_Mags_Folder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
         EndIf
         If Use_0toZ_Folder=#True
-          If Game_List()\File_Type="Game" And Game_List()\File_BETA=#False : Delete_Map(WHD_Game_Folder+"\"+Game_List()\File_SubFolder+"\"+Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
-          If Game_List()\File_Type="Demo" : Delete_Map(WHD_Demo_Folder+"\"+Game_List()\File_SubFolder+"\"+Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
-          If Game_List()\File_Type="Game" And Game_List()\File_BETA=#True : Delete_Map(WHD_Beta_Folder+"\"+Game_List()\File_SubFolder+"\"+Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
-          If Game_List()\File_Type="Magazine" : Delete_Map(WHD_Mags_Folder+"\"+Game_List()\File_SubFolder+"\"+Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
+          If Game_List()\File_Type="Game" And Game_List()\File_BETA=#False : Delete_Map(WHD_Game_Folder+Chr(92)+Game_List()\File_SubFolder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
+          If Game_List()\File_Type="Demo" : Delete_Map(WHD_Demo_Folder+Chr(92)+Game_List()\File_SubFolder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
+          If Game_List()\File_Type="Game" And Game_List()\File_BETA=#True : Delete_Map(WHD_Beta_Folder+Chr(92)+Game_List()\File_SubFolder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
+          If Game_List()\File_Type="Magazine" : Delete_Map(WHD_Mags_Folder+Chr(92)+Game_List()\File_SubFolder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
         EndIf
       EndIf
     EndIf
   Next  
   
-  base_count=CountString(WHD_Folder,"\")
+  base_count=CountString(WHD_Folder,Chr(92))
   
   ForEach File_List()
     If Use_Subfolder=#False 
       Count=base_count
-      If Not FindMapElement(Delete_Map(),StringField(File_List(),Count+1,"\"))
+      If Not FindMapElement(Delete_Map(),StringField(File_List(),Count+1,Chr(92)))
         If GetExtensionPart(File_List())="lha" Or GetExtensionPart(File_List())="lzx"
           AddElement(Delete_List())
           Delete_List()=File_List()
@@ -2051,7 +2154,7 @@ Procedure Update_Files()
     
     If Use_Subfolder=#True And Use_0toZ_Folder=#False 
       Count=base_count+1
-      If Not FindMapElement(Delete_Map(),StringField(File_List(),Count,"\")+"\"+StringField(File_List(),Count+1,"\"))
+      If Not FindMapElement(Delete_Map(),StringField(File_List(),Count,Chr(92))+Chr(92)+StringField(File_List(),Count+1,Chr(92)))
         If GetExtensionPart(File_List())="lha" Or GetExtensionPart(File_List())="lzx"
           AddElement(Delete_List())
           Delete_List()=File_List()
@@ -2061,7 +2164,7 @@ Procedure Update_Files()
     
     If Use_Subfolder=#True And Use_0toZ_Folder=#True
       Count=base_count+2
-      If Not FindMapElement(Delete_Map(),StringField(File_List(),Count-1,"\")+"\"+StringField(File_List(),Count,"\")+"\"+StringField(File_List(),Count+1,"\"))    
+      If Not FindMapElement(Delete_Map(),StringField(File_List(),Count-1,Chr(92))+Chr(92)+StringField(File_List(),Count,Chr(92))+Chr(92)+StringField(File_List(),Count+1,Chr(92)))    
         If GetExtensionPart(File_List())="lha" Or GetExtensionPart(File_List())="lzx"
           AddElement(Delete_List())
           Delete_List()=File_List()
@@ -2154,10 +2257,10 @@ Procedure Update_Files()
         If ListSize(Delete_List())>0
           If MessageRequester("Warning","Back up listed files?",#PB_MessageRequester_Warning|#PB_MessageRequester_YesNo)=#PB_MessageRequester_Yes
             ForEach Delete_List()
-              Count=CountString(Delete_List(),"\")
+              Count=CountString(Delete_List(),Chr(92))
               Path=Home_Path+"Backup"
               CreateDirectory(Path)
-              CopyFile(Delete_List(),Path+"\"+GetFilePart(Delete_List()))
+              CopyFile(Delete_List(),Path+Chr(92)+GetFilePart(Delete_List()))
               DeleteFile(Delete_List())
             Next
             Break
@@ -2814,18 +2917,19 @@ Procedure Main_Window()
   ButtonGadget(#LIST_APPEND_BUTTON,785,220,80,30,"Append List")
   ButtonGadget(#CLEAR_EDITS_BUTTON,785,255,80,30,"Clear Edits")
   
-  FrameGadget(#PB_Any,780,295,90,95,"Data")
+  FrameGadget(#PB_Any,780,290,90,125,"Data")
   
-  ButtonGadget(#CLEANUP_BUTTON,785,315,80,30,"Clean Files") 
-  ButtonGadget(#CLEAR_LIST_BUTTON,785,350,80,30,"Clear Data")   
+  ButtonGadget(#CLEANUP_BUTTON,785,310,80,30,"Clean Files") 
+  ButtonGadget(#CLEAR_LIST_BUTTON,785,345,80,30,"Clear Data")
+  ButtonGadget(#MAKE_FOLDER_BUTTON,785,380,80,30,"Make Folder")
   
-  FrameGadget(#PB_Any,780,390,90,190,"Misc")
+  FrameGadget(#PB_Any,780,415,90,165,"Misc")
   
-  ButtonGadget(#SAVE_PREFS_BUTTON,785,410,80,30,"Save Prefs")
-  ButtonGadget(#LOAD_PREFS_BUTTON,785,445,80,30,"Load Prefs")   
-  ButtonGadget(#HELP_BUTTON,785,480,80,30,"Help")
-  ButtonGadget(#ABOUT_BUTTON,785,515,80,30,"About")   
-  ButtonGadget(#DONATE_BUTTON,785,550,80,30,"Donate!")
+  ButtonGadget(#SAVE_PREFS_BUTTON,785,430,80,25,"Save Prefs")
+  ButtonGadget(#LOAD_PREFS_BUTTON,785,460,80,25,"Load Prefs")   
+  ButtonGadget(#HELP_BUTTON,785,490,80,25,"Help")
+  ButtonGadget(#ABOUT_BUTTON,785,520,80,25,"About")   
+  ButtonGadget(#DONATE_BUTTON,785,550,80,25,"Donate!")
   
   SetGadgetState(#GAME_OPTION,Filter(0)\F_Games)
   SetGadgetState(#DEMO_OPTION,Filter(0)\F_Demos)
@@ -2974,7 +3078,7 @@ Repeat
       EndIf
       
     Case #WHD_OPEN_GAME_BUTTON
-      Path=WHD_Folder+WHD_Game_Folder+"\"
+      Path=WHD_Folder+WHD_Game_Folder+Chr(92)
       If FileSize(Path)=-2
         OpenFolder(Path)
       Else
@@ -2987,7 +3091,7 @@ Repeat
       EndIf
       
     Case #WHD_OPEN_DEMO_BUTTON
-      Path=WHD_Folder+WHD_Demo_Folder+"\"
+      Path=WHD_Folder+WHD_Demo_Folder+Chr(92)
       If FileSize(Path)=-2
         OpenFolder(Path)
       Else
@@ -3000,7 +3104,7 @@ Repeat
       EndIf
       
     Case #WHD_OPEN_BETA_BUTTON
-      Path=WHD_Folder+WHD_Beta_Folder+"\"
+      Path=WHD_Folder+WHD_Beta_Folder+Chr(92)
       If FileSize(Path)=-2
         OpenFolder(Path)
       Else
@@ -3013,7 +3117,7 @@ Repeat
       EndIf
       
     Case #WHD_OPEN_MAGS_BUTTON
-      Path=WHD_Folder+WHD_Mags_Folder+"\"
+      Path=WHD_Folder+WHD_Mags_Folder+Chr(92)
       If FileSize(path)=-2
         OpenFolder(Path)
       Else
@@ -3061,7 +3165,10 @@ Repeat
         Draw_List()
       EndIf
       
-    Case #HELP_BUTTON
+    Case #MAKE_FOLDER_BUTTON
+      Make_Folder()
+      
+      Case #HELP_BUTTON
       Help_Window()
       
     Case #ABOUT_BUTTON
@@ -3321,10 +3428,10 @@ Repeat
 ForEver 
 
 End
-; IDE Options = PureBasic 6.00 Beta 3 (Windows - x64)
-; CursorPosition = 98
-; FirstLine = 79
-; Folding = AAAAAgRBw
+; IDE Options = PureBasic 6.00 Beta 4 (Windows - x64)
+; CursorPosition = 349
+; FirstLine = 349
+; Folding = AEBFAAAIw
 ; Optimizer
 ; EnableXP
 ; DPIAware
