@@ -101,7 +101,7 @@
 ; Fixed console actions on Download FTP procedure.
 ; Tweaked FTP procedures to use real FTP variables rather than 1 & 0.
 ; Minor speed up when processing strings.
-; Added button that makes a new folder or archives based on your filter selections.
+; Added button that makes a new folder of archives based on your filter selections.
 ;
 ;============================================
 ; To Do List
@@ -354,11 +354,9 @@ Global Version.s="0.8a"
 Global Path.s, Count.i, Folder.s, FCount.f
 Global Home_Path.s=GetCurrentDirectory()
 
-
 Global Temp_Folder.s=GetTemporaryDirectory()+"whd_temp\"
 Global Dat_Folder.s=Home_Path+"Dats\"
 Global List_Path.s=Home_Path+"Lists\"
-
 
 Global First_Run.b=#False
 Global Prefs_Name.s="default.prefs"
@@ -1826,13 +1824,18 @@ Procedure Make_Folder()
   
   Protected Out_Path.s, Out_Folder.s, In_Path.s
   Protected conHandle.l
-  Protected cancel.b
+  Protected cancel.b=#False
   Protected Keypressed$
+  Protected Folder_Structure.b=#True
   
   ClearList(Down_List())
 
   Out_Folder=PathRequester("Select a folder",Home_Path)
   
+  If MessageRequester("File Structure","Retain folder structure?",#PB_MessageRequester_Info|#PB_MessageRequester_YesNo)=#PB_MessageRequester_No
+    Folder_Structure=#False
+  EndIf
+    
   If Out_Folder<>""
     
     ForEach Filtered_List()
@@ -1872,7 +1875,7 @@ Procedure Make_Folder()
       SendMessage_(ConsoleHandle, #WM_NCPAINT, 1, 0)
       
       ForEach Down_List()        
-        If Use_Subfolder ; Create and add subfolder information to the downloads if selected
+        If Use_Subfolder And Folder_Structure; Create and add subfolder information to the downloads if selected
           CreateDirectory(Out_Folder+Down_List()\Down_Subfolder)
           Out_Path=Out_Folder+Down_List()\Down_Subfolder+Chr(92)+Down_List()\Down_Name
           If Use_0toZ_Folder 
@@ -3429,15 +3432,13 @@ ForEver
 
 End
 ; IDE Options = PureBasic 6.00 Beta 4 (Windows - x64)
-; CursorPosition = 349
-; FirstLine = 349
-; Folding = AEBFAAAIw
+; Folding = AAAAAAAAg
 ; Optimizer
 ; EnableXP
 ; DPIAware
 ; UseIcon = boing.ico
-; Executable = WHDTool_x64.exe
-; Compiler = PureBasic 6.00 Beta 3 - C Backend (Windows - x64)
+; Executable = WHDTool_x86.exe
+; Compiler = PureBasic 6.00 Beta 4 - C Backend (Windows - x86)
 ; Debugger = Standalone
 ; Warnings = Display
 ; IncludeVersionInfo
