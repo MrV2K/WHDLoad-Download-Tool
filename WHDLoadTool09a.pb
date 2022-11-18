@@ -1,6 +1,6 @@
 ﻿;- ############### WHDLoad Download Tool Info
 ;
-; Version 0.8a
+; Version 0.9a
 ;
 ; © 2022 Paul Vince (MrV2k)
 ;
@@ -109,19 +109,24 @@
 ;============================================
 ;
 ; Fixed a bug in sub folder creation.
-; Added ability to download to a folder structure based on category
-; Changed 'Use Subfolder', 'Save Prefs' and 'Load Prefs' to be disabled until the database is loaded
-; Updated ftp login to ftp.grandis.nu
-; Centered console on main window
+; Added ability to download to a folder structure based on category.
+; Changed 'Use Subfolder', 'Save Prefs' and 'Load Prefs' to be disabled until the database is loaded.
+; Updated ftp login to ftp2.grandis.nu.
+; Centered console on main window.
+; Added HTTP based downloads.
+; HTTP & FTP now selectable fron the main window. HTTP now the default but setting saved in prefs file.
+; Added HTTP path to main window and prefs. Editable in prefs file.
+; Removed Used Sub folders gadget and replaced with selectable combo gadget for sorting.
+; Added preview to download procedure.
+; Added 255 file limit to download folders for FAT32 devices.
 ;
 ;============================================
 ; To Do List
 ;============================================
 ;
 ; Add clean unneeded files to ftp download procedure.
-; Change database download to allow already downloaded filed if FTP fails
+; Change database download to allow already downloaded files if FTP fails
 ; Update all procedures to work with category downloads.
-; Add HTTP based downloads
 ;
 ;============================================
 ;
@@ -187,6 +192,7 @@ Enumeration
   
   #SCAN_BUTTON
   #DOWNLOAD_BUTTON
+  #DOWNLOAD_TYPE_COMBO
   #CLEAR_LIST_BUTTON
   #RESET_BUTTON
   #SAVE_PREFS_BUTTON
@@ -210,6 +216,7 @@ Enumeration
   #FTP_SERVER_STRING
   #FTP_FOLDER_STRING
   #FTP_PORT_STRING
+  #HTTP_PATH_STRING
   
   #WHD_MAIN_STRING  
   #WHD_OPEN_PATH_BUTTON
@@ -222,8 +229,7 @@ Enumeration
   #WHD_OPEN_MAGS_BUTTON
   #WHD_BETA_STRING
   #WHD_OPEN_BETA_BUTTON
-  #WHD_SUBFOLDER_CHECK
-  #WHD_0TOZ_CHECK
+  #WHD_SORT_COMBO
   #WHD_CATEGORY_CHECK
   #WHD_LANGUAGE_CHECK
   
@@ -287,6 +293,7 @@ Structure Game_Data
   File_Version.s
   File_Ignore.b
   File_Extra.b
+  File_Category_Folder.s
 EndStructure
 
 Structure Filter_Data
@@ -350,147 +357,6 @@ Structure File_Data
   R_File_Name.s
 EndStructure
 
-Structure cat_info
-  cat_name.s
-  cat_index.i
-EndStructure
-
-Structure cat_data
-  List cat_full.cat_info()
-  List cat_aga.cat_info()
-  List cat_arcadia.cat_info()
-  List cat_cd32.cat_info()
-  List cat_cdrom.cat_info()
-  List cat_cdtv.cat_info()
-  List cat_ecsocs.cat_info() 
-  List cat_ntsc.cat_info()
-  List cat_french.cat_info()
-  List cat_german.cat_info()
-  List cat_italian.cat_info()
-  List cat_spanish.cat_info()
-  List cat_greek.cat_info()
-  List cat_swedish.cat_info()
-  List cat_danish.cat_info()
-  List cat_multi.cat_info()
-  List cat_dutch.cat_info()
-  List cat_polish.cat_info()
-  List cat_czech.cat_info()
-  List cat_finnish.cat_info()
-  List cat_0toZ_full.cat_info()
-  List cat_0toZ_0.cat_info()
-  List cat_0toZ_A.cat_info()
-  List cat_0toZ_B.cat_info()
-  List cat_0toZ_C.cat_info()
-  List cat_0toZ_D.cat_info()
-  List cat_0toZ_E.cat_info()
-  List cat_0toZ_F.cat_info()
-  List cat_0toZ_G.cat_info()
-  List cat_0toZ_H.cat_info()
-  List cat_0toZ_I.cat_info()
-  List cat_0toZ_J.cat_info()
-  List cat_0toZ_K.cat_info()
-  List cat_0toZ_L.cat_info()
-  List cat_0toZ_M.cat_info()
-  List cat_0toZ_N.cat_info()
-  List cat_0toZ_O.cat_info()
-  List cat_0toZ_P.cat_info()
-  List cat_0toZ_Q.cat_info()
-  List cat_0toZ_R.cat_info()
-  List cat_0toZ_S.cat_info()
-  List cat_0toZ_T.cat_info()
-  List cat_0toZ_U.cat_info()
-  List cat_0toZ_V.cat_info()
-  List cat_0toZ_W.cat_info()
-  List cat_0toZ_X.cat_info()
-  List cat_0toZ_Y.cat_info()
-  List cat_0toZ_Z.cat_info()
-  List cat_Demo_full.cat_info()
-  List cat_Demo_0toZ_0.cat_info()
-  List cat_Demo_0toZ_A.cat_info()
-  List cat_Demo_0toZ_B.cat_info()
-  List cat_Demo_0toZ_C.cat_info()
-  List cat_Demo_0toZ_D.cat_info()
-  List cat_Demo_0toZ_E.cat_info()
-  List cat_Demo_0toZ_F.cat_info()
-  List cat_Demo_0toZ_G.cat_info()
-  List cat_Demo_0toZ_H.cat_info()
-  List cat_Demo_0toZ_I.cat_info()
-  List cat_Demo_0toZ_J.cat_info()
-  List cat_Demo_0toZ_K.cat_info()
-  List cat_Demo_0toZ_L.cat_info()
-  List cat_Demo_0toZ_M.cat_info()
-  List cat_Demo_0toZ_N.cat_info()
-  List cat_Demo_0toZ_O.cat_info()
-  List cat_Demo_0toZ_P.cat_info()
-  List cat_Demo_0toZ_Q.cat_info()
-  List cat_Demo_0toZ_R.cat_info()
-  List cat_Demo_0toZ_S.cat_info()
-  List cat_Demo_0toZ_T.cat_info()
-  List cat_Demo_0toZ_U.cat_info()
-  List cat_Demo_0toZ_V.cat_info()
-  List cat_Demo_0toZ_W.cat_info()
-  List cat_Demo_0toZ_X.cat_info()
-  List cat_Demo_0toZ_Y.cat_info()
-  List cat_Demo_0toZ_Z.cat_info()
-  List cat_Beta_full.cat_info()
-  List cat_Beta_0toZ_0.cat_info()
-  List cat_Beta_0toZ_A.cat_info()
-  List cat_Beta_0toZ_B.cat_info()
-  List cat_Beta_0toZ_C.cat_info()
-  List cat_Beta_0toZ_D.cat_info()
-  List cat_Beta_0toZ_E.cat_info()
-  List cat_Beta_0toZ_F.cat_info()
-  List cat_Beta_0toZ_G.cat_info()
-  List cat_Beta_0toZ_H.cat_info()
-  List cat_Beta_0toZ_I.cat_info()
-  List cat_Beta_0toZ_J.cat_info()
-  List cat_Beta_0toZ_K.cat_info()
-  List cat_Beta_0toZ_L.cat_info()
-  List cat_Beta_0toZ_M.cat_info()
-  List cat_Beta_0toZ_N.cat_info()
-  List cat_Beta_0toZ_O.cat_info()
-  List cat_Beta_0toZ_P.cat_info()
-  List cat_Beta_0toZ_Q.cat_info()
-  List cat_Beta_0toZ_R.cat_info()
-  List cat_Beta_0toZ_S.cat_info()
-  List cat_Beta_0toZ_T.cat_info()
-  List cat_Beta_0toZ_U.cat_info()
-  List cat_Beta_0toZ_V.cat_info()
-  List cat_Beta_0toZ_W.cat_info()
-  List cat_Beta_0toZ_X.cat_info()
-  List cat_Beta_0toZ_Y.cat_info()
-  List cat_Beta_0toZ_Z.cat_info()
-  List cat_Magazine_full.cat_info()
-  List cat_Magazine_0toZ_0.cat_info()
-  List cat_Magazine_0toZ_A.cat_info()
-  List cat_Magazine_0toZ_B.cat_info()
-  List cat_Magazine_0toZ_C.cat_info()
-  List cat_Magazine_0toZ_D.cat_info()
-  List cat_Magazine_0toZ_E.cat_info()
-  List cat_Magazine_0toZ_F.cat_info()
-  List cat_Magazine_0toZ_G.cat_info()
-  List cat_Magazine_0toZ_H.cat_info()
-  List cat_Magazine_0toZ_I.cat_info()
-  List cat_Magazine_0toZ_J.cat_info()
-  List cat_Magazine_0toZ_K.cat_info()
-  List cat_Magazine_0toZ_L.cat_info()
-  List cat_Magazine_0toZ_M.cat_info()
-  List cat_Magazine_0toZ_N.cat_info()
-  List cat_Magazine_0toZ_O.cat_info()
-  List cat_Magazine_0toZ_P.cat_info()
-  List cat_Magazine_0toZ_Q.cat_info()
-  List cat_Magazine_0toZ_R.cat_info()
-  List cat_Magazine_0toZ_S.cat_info()
-  List cat_Magazine_0toZ_T.cat_info()
-  List cat_Magazine_0toZ_U.cat_info()
-  List cat_Magazine_0toZ_V.cat_info()
-  List cat_Magazine_0toZ_W.cat_info()
-  List cat_Magazine_0toZ_X.cat_info()
-  List cat_Magazine_0toZ_Y.cat_info()
-  List cat_Magazine_0toZ_Z.cat_info()
-  
-EndStructure
-
 ;- ############### Lists
 
 Global NewList File_List.s()
@@ -503,7 +369,6 @@ Global NewList Edit_Filtered_List.i()
 Global NewList Directory_List.s()
 Global NewList List_Games.s()
 Global NewList Editor_List.Edit_Data()
-Global NewList cat_list.cat_data()
 
 ;- ############### Global Variables
 
@@ -521,9 +386,8 @@ Global Prefs_Name.s="default.prefs"
 Global Lang_Bool.b=#True
 Global Avail_Games.i=0
 Global Old_Pos.i
-Global Use_Subfolder.b=#False
-Global Use_0toZ_Folder.i=0
-Global Keep_Languages.i=0
+Global Sort_Type.i=0
+Global Split_Languages.i=0
 Global A500Mini.b=#False
 Global Slash$ ; For cross platform path compatability
 
@@ -533,6 +397,9 @@ Global FTP_User.s
 Global FTP_Pass.s
 Global FTP_Passive.b
 Global FTP_Port.i
+Global HTTP_Server.s
+
+Global Download_Type.i
 
 Global WHD_Folder.s
 Global FTP_Game_Folder.s
@@ -558,7 +425,7 @@ Declare Draw_List()
 
 Macro Center_Console()
   hWnd = GetConsoleWindow(0)
-  MoveWindow_(hWnd, DpiX(WindowX(#MAIN_WINDOW))+(WindowWidth(#MAIN_WINDOW)/4), DpiY(WindowY(#MAIN_WINDOW))+(WindowHeight(#MAIN_WINDOW)/4), 800, 600, 1)
+  MoveWindow_(hWnd, DpiX(WindowX(#MAIN_WINDOW))+(WindowWidth(#MAIN_WINDOW)/8), DpiY(WindowY(#MAIN_WINDOW))+(WindowHeight(#MAIN_WINDOW)/8), WindowWidth(#MAIN_WINDOW)/1.25, WindowHeight(#MAIN_WINDOW)/1.25, 1)
 EndMacro
 
 Macro Remove_Console_Close()
@@ -696,8 +563,10 @@ Macro Default_Settings()
   
   Prefs_Name="default.prefs"
   
+  Download_Type=1 ; 0=FTP 1=HTTP
+  
   FTP_Folder="Retroplay WHDLoad Packs"
-  FTP_Server="ftp.grandis.nu"
+  FTP_Server="ftp2.grandis.nu"
   FTP_User="ftp"
   FTP_Pass="amiga"
   FTP_Passive=#True
@@ -711,6 +580,7 @@ Macro Default_Settings()
   WHD_Beta_Folder="Beta"
   FTP_Mags_Folder="Commodore_Amiga_-_WHDLoad_-_Magazines"
   WHD_Mags_Folder="Magazines"
+  HTTP_Server="http://ftp2.grandis.nu/turran/FTP/Retroplay%20WHDLoad%20Packs"
   
   Filter(0)\F_Games=#True
   Filter(0)\F_Demos=#True
@@ -862,12 +732,12 @@ Procedure Disable_Gadgets(bool.b)
   DisableGadget(#LIST_LOAD_BUTTON,bool)
   DisableGadget(#LIST_SAVE_BUTTON,bool)
   
-  DisableGadget(#WHD_SUBFOLDER_CHECK,bool)
   DisableGadget(#WHD_OPEN_PATH_BUTTON,bool)
   DisableGadget(#WHD_SET_PATH_BUTTON,bool)
   
   DisableGadget(#LOAD_PREFS_BUTTON,bool)
   DisableGadget(#SAVE_PREFS_BUTTON,bool)
+  DisableGadget(#WHD_SORT_COMBO,bool)
   
 EndProcedure
 
@@ -1162,21 +1032,19 @@ Procedure Filter_List()
   Protected NewMap File_Map.i();, filetype.s
   
   ForEach Game_List()
-    If Use_Subfolder=#False
+    If Sort_Type=0
       File_Map(WHD_Folder+Game_List()\File_Name)=ListIndex(Game_List())
     EndIf
-    If Use_Subfolder=#True
-      If Use_0toZ_Folder=#True
-        If Game_List()\File_Type="Game" And Game_List()\File_BETA=#False : File_Map(WHD_Folder+WHD_Game_Folder+Chr(92)+Game_List()\File_SubFolder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
-        If Game_List()\File_Type="Demo" : File_Map(WHD_Folder+WHD_Demo_Folder+Chr(92)+Game_List()\File_SubFolder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
-        If Game_List()\File_Type="Game" And Game_List()\File_BETA=#True : File_Map(WHD_Folder+WHD_Beta_Folder+Chr(92)+Game_List()\File_SubFolder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
-        If Game_List()\File_Type="Magazine" : File_Map(WHD_Folder+WHD_Mags_Folder+Chr(92)+Game_List()\File_SubFolder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
-      Else
-        If Game_List()\File_Type="Game" : File_Map(WHD_Folder+WHD_Game_Folder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
-        If Game_List()\File_Type="Demo" : File_Map(WHD_Folder+WHD_Demo_Folder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
-        If Game_List()\File_Type="Game" And Game_List()\File_BETA=#True : File_Map(WHD_Folder+WHD_Beta_Folder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
-        If Game_List()\File_Type="Magazine" : File_Map(WHD_Folder+WHD_Mags_Folder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
-      EndIf
+    If Sort_Type<>0
+      If Game_List()\File_Type="Game" And Game_List()\File_BETA=#False : File_Map(WHD_Folder+WHD_Game_Folder+Chr(92)+Game_List()\File_SubFolder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
+      If Game_List()\File_Type="Demo" : File_Map(WHD_Folder+WHD_Demo_Folder+Chr(92)+Game_List()\File_SubFolder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
+      If Game_List()\File_Type="Game" And Game_List()\File_BETA=#True : File_Map(WHD_Folder+WHD_Beta_Folder+Chr(92)+Game_List()\File_SubFolder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
+      If Game_List()\File_Type="Magazine" : File_Map(WHD_Folder+WHD_Mags_Folder+Chr(92)+Game_List()\File_SubFolder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
+    Else
+      If Game_List()\File_Type="Game" : File_Map(WHD_Folder+WHD_Game_Folder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
+      If Game_List()\File_Type="Demo" : File_Map(WHD_Folder+WHD_Demo_Folder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
+      If Game_List()\File_Type="Game" And Game_List()\File_BETA=#True : File_Map(WHD_Folder+WHD_Beta_Folder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
+      If Game_List()\File_Type="Magazine" : File_Map(WHD_Folder+WHD_Mags_Folder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
     EndIf  
   Next
   
@@ -1253,12 +1121,14 @@ Procedure Save_Prefs(p_path.s)
   WritePreferenceString("FTP_User",FTP_User)
   WritePreferenceString("FTP_Pass",FTP_Pass)
   WritePreferenceString("FTP_Server",FTP_Server)
+  WritePreferenceString("HTTP_Server",HTTP_Server)
   WritePreferenceInteger("FTP_Port",FTP_Port)
   WritePreferenceString("FTP_Folder",FTP_Folder)
   WritePreferenceString("FTP_Game_Folder",FTP_Game_Folder)
   WritePreferenceString("FTP_Demo_Folder",FTP_Demo_Folder)
   WritePreferenceString("FTP_Beta_Folder",FTP_Beta_Folder)
   WritePreferenceString("FTP_Magazine_Folder",FTP_Mags_Folder)
+  WritePreferenceInteger("Download_Type",Download_Type)
   
   PreferenceComment("")
   
@@ -1268,8 +1138,7 @@ Procedure Save_Prefs(p_path.s)
   WritePreferenceString("WHD_Demo",WHD_Demo_Folder)
   WritePreferenceString("WHD_Beta",WHD_Beta_Folder)
   WritePreferenceString("WHD_Mags",WHD_Mags_Folder)
-  WritePreferenceInteger("WHD_Subfolder",Use_Subfolder)
-  WritePreferenceInteger("WHD_0toZ",Use_0toZ_Folder)
+  WritePreferenceInteger("WHD_Sort",Sort_Type)
   
   PreferenceComment("")
   
@@ -1319,12 +1188,14 @@ Procedure Load_Prefs(p_path.s)
     FTP_User=ReadPreferenceString("FTP_User",FTP_User)
     FTP_Pass=ReadPreferenceString("FTP_Pass",FTP_Pass)
     FTP_Server=ReadPreferenceString("FTP_Server",FTP_Server)
+    HTTP_Server=ReadPreferenceString("HTTP_Server",HTTP_Server)
     FTP_Port=ReadPreferenceInteger("FTP_Port",FTP_Port)
     FTP_Folder=ReadPreferenceString("FTP_Folder",FTP_Folder)
     FTP_Game_Folder=ReadPreferenceString("FTP_Game_Folder",FTP_Game_Folder)
     FTP_Demo_Folder=ReadPreferenceString("FTP_Demo_Folder",FTP_Demo_Folder)
     FTP_Beta_Folder=ReadPreferenceString("FTP_Beta_Folder",FTP_Beta_Folder)
     FTP_Mags_Folder=ReadPreferenceString("FTP_Magazine_Folder",FTP_Mags_Folder)
+    Download_Type=ReadPreferenceInteger("Download_Type",Download_Type)
     
     PreferenceGroup("Paths")
     WHD_Folder=ReadPreferenceString("WHD_Path",WHD_Folder)
@@ -1332,8 +1203,7 @@ Procedure Load_Prefs(p_path.s)
     WHD_Demo_Folder=ReadPreferenceString("WHD_Demo",WHD_Demo_Folder)
     WHD_Beta_Folder=ReadPreferenceString("WHD_Beta",WHD_Beta_Folder)
     WHD_Mags_Folder=ReadPreferenceString("WHD_Mags",WHD_Mags_Folder)
-    Use_Subfolder=ReadPreferenceInteger("WHD_Subfolder",Use_Subfolder)
-    Use_0toZ_Folder=ReadPreferenceInteger("WHD_0toZ",Use_0toZ_Folder)
+    Sort_Type=ReadPreferenceInteger("WHD_Sort",Sort_Type)
     
     PreferenceGroup("Filter")
     Filter(0)\F_Games=ReadPreferenceInteger("Filter_Games",Filter(0)\F_Games)
@@ -1745,6 +1615,177 @@ Procedure.l FTPClose(hInternet.l)
   ProcedureReturn InternetCloseHandle_(hInternet) 
 EndProcedure 
 
+Procedure Scan_HTTP()
+  
+  Protected NewList Dat_List.s() ; Zipped DAT files on FTP.
+  Protected NewList XML_List.s() ; DAT files in each zip.
+  Protected NewList Scan_List.s(); Files in dats folder to compare
+  Protected NewMap File_Map.s()  ; Files from FTP to compare to Scan_List
+  
+  Protected dat_archive.i, xml_file.i    
+  Protected FileName$
+  
+  Protected NewList FTP_Dir_Files.s()  
+  
+  ClearList(Down_List())
+  ClearList(List_Games())
+  
+  CreateDirectory(Temp_Folder)
+  
+  Protected ConsoleTitle$, system_menu.l
+  
+  ConsoleTitle$="HTTP Download"
+  
+  OpenConsole(ConsoleTitle$)
+  Center_Console()
+  Remove_Console_Close()
+  
+  Protected response, info$, input$, i, path$
+  
+  response=HTTPRequest(#PB_HTTP_Get,HTTP_Server)
+  info$=HTTPInfo(response,#PB_HTTP_Response)
+
+  count=CountString(info$,#LF$)
+  
+  For i=1 To count+1
+    input$=StringField(info$,i,#LF$)
+    If FindString(input$,"zip",#PB_String_NoCase)
+      AddElement(FTP_Dir_Files())
+      path$=Trim(input$)
+      path$=StringField(path$,6,#DOUBLEQUOTE$)
+      path$=ReplaceString(path$,"amp;","")
+      FTP_Dir_Files()=path$
+    EndIf
+  Next
+  
+  PrintNCol("Checking for update...",11,0)
+  PrintN("")
+  PrintNCol("Reading "+HTTP_Server,2,0)
+  Count=0
+  
+  PrintN("")
+  
+  If ListSize(FTP_Dir_Files())>0
+    If FileSize(Dat_Folder)<>-2 : CreateDirectory(Dat_Folder) : EndIf  
+    SetCurrentDirectory(Dat_Folder)
+    ForEach FTP_Dir_Files()
+      If FindString(FTP_Dir_Files(),"WHDLoad") 
+        FileName$=FTP_Dir_Files()   
+        FileName$=ReplaceString(FileName$,"%20"," ")
+        FileName$=ReplaceString(filename$,"amp;","")
+        AddElement(Dat_List())
+        Dat_List()=FileName$ ; Add file to downloaded file list
+        If FileSize(Dat_Folder+FileName$)=-1  
+          PrintN("Downloading : "+FileName$)
+          If ReceiveHTTPFile(HTTP_Server+"/"+FTP_Dir_Files(),Dat_Folder+FileName$)
+            PrintN("Success")
+          Else
+            PrintN("Download Error!")
+          EndIf
+        Else
+          PrintN(FileName$+" up to date!")
+        EndIf
+      EndIf
+    Next
+  Else
+    PrintN("")
+    PrintNCol("Error - Cannot find HTTP folder!",4,0)
+    Goto Proc_Exit
+  EndIf   
+  
+  List_Files_Recursive(Dat_Folder,Scan_List(),"*.zip") ; Scan all the files in the dat folder
+  
+  ForEach Scan_List() ; Remove path information
+    Scan_List()=GetFilePart(Scan_List())
+  Next
+  
+  ForEach Dat_List() ; Load the datfiles into a map
+    File_Map(Dat_List())=""
+  Next
+  
+  ForEach Scan_List() ; compare the scan list to the dat folder map and delete anything not needed
+    If Not FindMapElement(File_Map(),Scan_List()) 
+      DeleteFile(Dat_Folder+Scan_List(),#PB_FileSystem_Force)
+    EndIf
+  Next
+  
+  FreeMap(File_Map())
+  ClearList(Scan_List())
+  
+  PrintN("")
+  PrintNCol("Processing dat files...",11,0)
+  
+  ClearList(Dat_List())
+  
+  List_Files_Recursive(Dat_Folder,Dat_List(),"*.zip")  
+  
+  SetCurrentDirectory(Temp_Folder)
+  
+  ForEach Dat_List()
+    dat_archive=OpenPack(#PB_Any,Dat_List(),#PB_PackerPlugin_Zip)
+    If dat_archive
+      If ExaminePack(dat_archive)
+        While NextPackEntry(dat_archive)
+          UncompressPackFile(dat_archive,PackEntryName(dat_archive))
+          AddElement(XML_List())
+          XML_List()=PackEntryName(dat_archive)
+        Wend
+      EndIf
+      ClosePack(dat_archive)
+    Else
+      PrintN("")
+      PrintNCol("Error - Cannot open archive",4,0)
+    EndIf
+  Next
+  
+  ForEach XML_List()
+    
+    If FindString(XML_List(), "Demos") : path="Demo" : EndIf
+    If FindString(XML_List(), "Games") : path="Game" : EndIf
+    If FindString(XML_List(), "Beta") : path="Beta" : EndIf
+    If FindString(XML_List(), "Magazines") : path="Magazine" : EndIf
+    
+    xml_file=LoadXML(#PB_Any, XML_List()) 
+    
+    If xml_file            
+      If XMLStatus(xml_file) <> #PB_XML_Success
+        Define Message.s = "Error in the XML file:" + Chr(13)
+        Message + "Message: " + XMLError(xml_file) + Chr(13)
+        Message + "Line: " + Str(XMLErrorLine(xml_file)) + "   Character: " + Str(XMLErrorPosition(xml_file))
+        MessageRequester("Error", Message)
+        End
+      EndIf
+      Define *mainnode = MainXMLNode(xml_file)
+      If *MainNode
+        FillTree(*MainNode)
+      EndIf   
+      FreeXML(xml_file) ; Free Memory  
+    EndIf
+    
+    DeleteFile(XML_List(),#PB_FileSystem_Force)
+    
+  Next
+  
+  SetCurrentDirectory(Home_Path)
+  
+  DeleteDirectory(Temp_Folder,"",#PB_FileSystem_Force)
+  
+  FreeList(Dat_List())
+  FreeList(XML_List())
+  FreeList(FTP_Dir_Files())
+
+  Update_File_List()  
+  
+  Proc_Exit:
+  
+  Delay(1500)  
+  
+  CloseConsole()  
+  
+  SetCurrentDirectory(home_path)  
+  
+EndProcedure
+
 Procedure Scan_FTP()
   
   Protected NewList Dat_List.s() ; Zipped DAT files on FTP.
@@ -1936,367 +1977,113 @@ Procedure Scan_FTP()
   
 EndProcedure
 
-Macro Add_Category(list_struct,list_name,category)
+Macro Add_Category(ftype,category)
   
-  If Use_Subfolder  
-    If ListSize(list_struct)>0
-      SelectElement(list_struct,0)
-      If A500Mini=#False
-        AddGadgetItem(#DOWNLOAD_LIST,-1,category,0,1)
-      Else
-        If ListSize(list_struct)>255
-          AddGadgetItem(#DOWNLOAD_LIST,-1,category+" ("+Left(list_name,2)+")",0,1)
-        Else
-          AddGadgetItem(#DOWNLOAD_LIST,-1,category,0,1)
+  ClearList(Sort_List())
+  
+  Count=0
+  
+  If A500Mini=#False 
+    ForEach Down_List()
+      If Down_List()\Down_Type=ftype
+        If Down_List()\Down_Folder=category
+          AddElement(Sort_List())
+          Sort_List()=Down_List()\Down_Name
         EndIf
       EndIf
-      
-      ForEach list_struct
-        If Mod(ListIndex(list_struct),255)=0 And ListIndex(list_struct)>1 And A500Mini=#True
-          AddGadgetItem(#DOWNLOAD_LIST,-1,category+" ("+Left(list_name,2)+")",0,1)
-        EndIf
-        AddGadgetItem(#DOWNLOAD_LIST,-1,list_name,0,2)
-      Next
+    Next 
+    If ListSize(Sort_List())>0
+      SortList(Sort_List(),#PB_Sort_Ascending|#PB_Sort_NoCase)
+      AddGadgetItem(#DOWNLOAD_LIST,-1,category+" ("+ListSize(Sort_List())+")",0,0)
+      ForEach Sort_List()
+        AddGadgetItem(#DOWNLOAD_LIST,-1,Sort_List(),0,1)
+      Next    
     EndIf
-  Else
-    ForEach list_struct
-      AddGadgetItem(#DOWNLOAD_LIST,-1,list_name,0,0)
-    Next
   EndIf
-
+  
 EndMacro
 
 Procedure Draw_Preview()
   
-  Pause_Window(#DOWNLOAD_WINDOW)
+  Protected old_letter.s, last_letter.s
+  
+  NewList Sort_List.s()
+  
+  Pause_Gadget(#DOWNLOAD_LIST)
   
   ClearGadgetItems(#DOWNLOAD_LIST)
   
-  If Use_Subfolder
+  If Sort_Type=0
     
-    If Use_0toZ_Folder=1
-      If Filter(0)\F_Games=#True : AddGadgetItem(#DOWNLOAD_LIST,-1,"Games",0,0) : EndIf
-      Add_Category(cat_list()\cat_aga(),cat_list()\cat_aga()\cat_name,"AGA")
-      Add_Category(cat_list()\cat_arcadia(),cat_list()\cat_arcadia()\cat_name,"Arcadia")
-      Add_Category(cat_list()\cat_cd32(),cat_list()\cat_cd32()\cat_name,"CD32")
-      Add_Category(cat_list()\cat_cdrom(),cat_list()\cat_cdrom()\cat_name,"CDROM")
-      Add_Category(cat_list()\cat_cdtv(),cat_list()\cat_cdtv()\cat_name,"CDTV")    
-      Add_Category(cat_list()\cat_ecsocs(),cat_list()\cat_ecsocs()\cat_name,"ECS-OCS")
-      Add_Category(cat_list()\cat_ntsc(),cat_list()\cat_ntsc()\cat_name,"NTSC")
-      Add_Category(cat_list()\cat_french(),cat_list()\cat_french()\cat_name,"French")
-      Add_Category(cat_list()\cat_german(),cat_list()\cat_german()\cat_name,"German")
-      Add_Category(cat_list()\cat_italian(),cat_list()\cat_italian()\cat_name,"Italian")
-      Add_Category(cat_list()\cat_spanish(),cat_list()\cat_spanish()\cat_name,"Spanish")
-      Add_Category(cat_list()\cat_polish(),cat_list()\cat_polish()\cat_name,"Polish")
-      Add_Category(cat_list()\cat_swedish(),cat_list()\cat_swedish()\cat_name,"Swedish")
-      Add_Category(cat_list()\cat_danish(),cat_list()\cat_danish()\cat_name,"Danish")
-      Add_Category(cat_list()\cat_czech(),cat_list()\cat_czech()\cat_name,"Czech")
-      Add_Category(cat_list()\cat_finnish(),cat_list()\cat_finnish()\cat_name,"Finnish")
-      Add_Category(cat_list()\cat_greek(),cat_list()\cat_greek()\cat_name,"Greek")
-      Add_Category(cat_list()\cat_dutch(),cat_list()\cat_dutch()\cat_name,"Dutch")
-      Add_Category(cat_list()\cat_multi(),cat_list()\cat_multi()\cat_name,"Swedish")
-      If Filter(0)\F_Demos=#True : AddGadgetItem(#DOWNLOAD_LIST,-1,"Demos",0,0) : EndIf
-      Add_Category(cat_list()\cat_Demo_full(),cat_list()\cat_Demo_full()\cat_name,"Demos")
-      If Filter(0)\F_Beta=#True : AddGadgetItem(#DOWNLOAD_LIST,-1,"Beta & Unreleased",0,0) : EndIf
-      Add_Category(cat_list()\cat_Beta_full(),cat_list()\cat_Beta_full()\cat_name,"Beta & Unreleased")
-      If Filter(0)\F_Mags=#True : AddGadgetItem(#DOWNLOAD_LIST,-1,"Magazines",0,0) : EndIf
-      Add_Category(cat_list()\cat_Magazine_full(),cat_list()\cat_Magazine_full()\cat_name,"Magazines")
-      
+    If A500Mini=#False
+      ForEach Down_List()
+        AddGadgetItem(#DOWNLOAD_LIST,-1,Down_List()\Down_Name)
+      Next
     EndIf
     
-    If Use_0toZ_Folder=0
-      If Filter(0)\F_Games=#True : AddGadgetItem(#DOWNLOAD_LIST,-1,"Games",0,0) : EndIf
-      Add_Category(cat_list()\cat_0toZ_0(),cat_list()\cat_0toZ_0()\cat_name,"0-9")
-      Add_Category(cat_list()\cat_0toZ_A(),cat_list()\cat_0toZ_A()\cat_name,"A")
-      Add_Category(cat_list()\cat_0toZ_B(),cat_list()\cat_0toZ_B()\cat_name,"B")
-      Add_Category(cat_list()\cat_0toZ_C(),cat_list()\cat_0toZ_C()\cat_name,"C")
-      Add_Category(cat_list()\cat_0toZ_D(),cat_list()\cat_0toZ_D()\cat_name,"D")
-      Add_Category(cat_list()\cat_0toZ_E(),cat_list()\cat_0toZ_E()\cat_name,"E")
-      Add_Category(cat_list()\cat_0toZ_F(),cat_list()\cat_0toZ_F()\cat_name,"F")
-      Add_Category(cat_list()\cat_0toZ_G(),cat_list()\cat_0toZ_G()\cat_name,"G")
-      Add_Category(cat_list()\cat_0toZ_H(),cat_list()\cat_0toZ_H()\cat_name,"H")
-      Add_Category(cat_list()\cat_0toZ_I(),cat_list()\cat_0toZ_I()\cat_name,"I")
-      Add_Category(cat_list()\cat_0toZ_J(),cat_list()\cat_0toZ_J()\cat_name,"J")
-      Add_Category(cat_list()\cat_0toZ_K(),cat_list()\cat_0toZ_K()\cat_name,"K")
-      Add_Category(cat_list()\cat_0toZ_L(),cat_list()\cat_0toZ_L()\cat_name,"L")
-      Add_Category(cat_list()\cat_0toZ_M(),cat_list()\cat_0toZ_M()\cat_name,"M")
-      Add_Category(cat_list()\cat_0toZ_N(),cat_list()\cat_0toZ_N()\cat_name,"N")
-      Add_Category(cat_list()\cat_0toZ_O(),cat_list()\cat_0toZ_O()\cat_name,"O")
-      Add_Category(cat_list()\cat_0toZ_P(),cat_list()\cat_0toZ_P()\cat_name,"P")
-      Add_Category(cat_list()\cat_0toZ_Q(),cat_list()\cat_0toZ_Q()\cat_name,"Q")
-      Add_Category(cat_list()\cat_0toZ_R(),cat_list()\cat_0toZ_R()\cat_name,"R")
-      Add_Category(cat_list()\cat_0toZ_S(),cat_list()\cat_0toZ_S()\cat_name,"S")
-      Add_Category(cat_list()\cat_0toZ_T(),cat_list()\cat_0toZ_T()\cat_name,"T")
-      Add_Category(cat_list()\cat_0toZ_U(),cat_list()\cat_0toZ_U()\cat_name,"U")
-      Add_Category(cat_list()\cat_0toZ_V(),cat_list()\cat_0toZ_V()\cat_name,"V")
-      Add_Category(cat_list()\cat_0toZ_W(),cat_list()\cat_0toZ_W()\cat_name,"W")
-      Add_Category(cat_list()\cat_0toZ_X(),cat_list()\cat_0toZ_X()\cat_name,"X")
-      Add_Category(cat_list()\cat_0toZ_Y(),cat_list()\cat_0toZ_Y()\cat_name,"Y")
-      Add_Category(cat_list()\cat_0toZ_Z(),cat_list()\cat_0toZ_Z()\cat_name,"Z")
-      If Filter(0)\F_Demos=#True : AddGadgetItem(#DOWNLOAD_LIST,-1,"Demos",0,0) : EndIf 
-      Add_Category(cat_list()\cat_Demo_0toZ_0(),cat_list()\cat_Demo_0toZ_0()\cat_name,"0-9")
-      Add_Category(cat_list()\cat_Demo_0toZ_A(),cat_list()\cat_Demo_0toZ_A()\cat_name,"A")
-      Add_Category(cat_list()\cat_Demo_0toZ_B(),cat_list()\cat_Demo_0toZ_B()\cat_name,"B")
-      Add_Category(cat_list()\cat_Demo_0toZ_C(),cat_list()\cat_Demo_0toZ_C()\cat_name,"C")
-      Add_Category(cat_list()\cat_Demo_0toZ_D(),cat_list()\cat_Demo_0toZ_D()\cat_name,"D")
-      Add_Category(cat_list()\cat_Demo_0toZ_E(),cat_list()\cat_Demo_0toZ_E()\cat_name,"E")
-      Add_Category(cat_list()\cat_Demo_0toZ_F(),cat_list()\cat_Demo_0toZ_F()\cat_name,"F")
-      Add_Category(cat_list()\cat_Demo_0toZ_G(),cat_list()\cat_Demo_0toZ_G()\cat_name,"G")
-      Add_Category(cat_list()\cat_Demo_0toZ_H(),cat_list()\cat_Demo_0toZ_H()\cat_name,"H")
-      Add_Category(cat_list()\cat_Demo_0toZ_I(),cat_list()\cat_Demo_0toZ_I()\cat_name,"I")
-      Add_Category(cat_list()\cat_Demo_0toZ_J(),cat_list()\cat_Demo_0toZ_J()\cat_name,"J")
-      Add_Category(cat_list()\cat_Demo_0toZ_K(),cat_list()\cat_Demo_0toZ_K()\cat_name,"K")
-      Add_Category(cat_list()\cat_Demo_0toZ_L(),cat_list()\cat_Demo_0toZ_L()\cat_name,"L")
-      Add_Category(cat_list()\cat_Demo_0toZ_M(),cat_list()\cat_Demo_0toZ_M()\cat_name,"M")
-      Add_Category(cat_list()\cat_Demo_0toZ_N(),cat_list()\cat_Demo_0toZ_N()\cat_name,"N")
-      Add_Category(cat_list()\cat_Demo_0toZ_O(),cat_list()\cat_Demo_0toZ_O()\cat_name,"O")
-      Add_Category(cat_list()\cat_Demo_0toZ_P(),cat_list()\cat_Demo_0toZ_P()\cat_name,"P")
-      Add_Category(cat_list()\cat_Demo_0toZ_Q(),cat_list()\cat_Demo_0toZ_Q()\cat_name,"Q")
-      Add_Category(cat_list()\cat_Demo_0toZ_R(),cat_list()\cat_Demo_0toZ_R()\cat_name,"R")
-      Add_Category(cat_list()\cat_Demo_0toZ_S(),cat_list()\cat_Demo_0toZ_S()\cat_name,"S")
-      Add_Category(cat_list()\cat_Demo_0toZ_T(),cat_list()\cat_Demo_0toZ_T()\cat_name,"T")
-      Add_Category(cat_list()\cat_Demo_0toZ_U(),cat_list()\cat_Demo_0toZ_U()\cat_name,"U")
-      Add_Category(cat_list()\cat_Demo_0toZ_V(),cat_list()\cat_Demo_0toZ_V()\cat_name,"V")
-      Add_Category(cat_list()\cat_Demo_0toZ_W(),cat_list()\cat_Demo_0toZ_W()\cat_name,"W")
-      Add_Category(cat_list()\cat_Demo_0toZ_X(),cat_list()\cat_Demo_0toZ_X()\cat_name,"X")
-      Add_Category(cat_list()\cat_Demo_0toZ_Y(),cat_list()\cat_Demo_0toZ_Y()\cat_name,"Y")
-      Add_Category(cat_list()\cat_Demo_0toZ_Z(),cat_list()\cat_Demo_0toZ_Z()\cat_name,"Z")
-      If Filter(0)\F_Beta=#True : AddGadgetItem(#DOWNLOAD_LIST,-1,"Beta & Unreleased",0,0) : EndIf
-      Add_Category(cat_list()\cat_Beta_0toZ_0(),cat_list()\cat_Beta_0toZ_0()\cat_name,"0-9")
-      Add_Category(cat_list()\cat_Beta_0toZ_A(),cat_list()\cat_Beta_0toZ_A()\cat_name,"A")
-      Add_Category(cat_list()\cat_Beta_0toZ_B(),cat_list()\cat_Beta_0toZ_B()\cat_name,"B")
-      Add_Category(cat_list()\cat_Beta_0toZ_C(),cat_list()\cat_Beta_0toZ_C()\cat_name,"C")
-      Add_Category(cat_list()\cat_Beta_0toZ_D(),cat_list()\cat_Beta_0toZ_D()\cat_name,"D")
-      Add_Category(cat_list()\cat_Beta_0toZ_E(),cat_list()\cat_Beta_0toZ_E()\cat_name,"E")
-      Add_Category(cat_list()\cat_Beta_0toZ_F(),cat_list()\cat_Beta_0toZ_F()\cat_name,"F")
-      Add_Category(cat_list()\cat_Beta_0toZ_G(),cat_list()\cat_Beta_0toZ_G()\cat_name,"G")
-      Add_Category(cat_list()\cat_Beta_0toZ_H(),cat_list()\cat_Beta_0toZ_H()\cat_name,"H")
-      Add_Category(cat_list()\cat_Beta_0toZ_I(),cat_list()\cat_Beta_0toZ_I()\cat_name,"I")
-      Add_Category(cat_list()\cat_Beta_0toZ_J(),cat_list()\cat_Beta_0toZ_J()\cat_name,"J")
-      Add_Category(cat_list()\cat_Beta_0toZ_K(),cat_list()\cat_Beta_0toZ_K()\cat_name,"K")
-      Add_Category(cat_list()\cat_Beta_0toZ_L(),cat_list()\cat_Beta_0toZ_L()\cat_name,"L")
-      Add_Category(cat_list()\cat_Beta_0toZ_M(),cat_list()\cat_Beta_0toZ_M()\cat_name,"M")
-      Add_Category(cat_list()\cat_Beta_0toZ_N(),cat_list()\cat_Beta_0toZ_N()\cat_name,"N")
-      Add_Category(cat_list()\cat_Beta_0toZ_O(),cat_list()\cat_Beta_0toZ_O()\cat_name,"O")
-      Add_Category(cat_list()\cat_Beta_0toZ_P(),cat_list()\cat_Beta_0toZ_P()\cat_name,"P")
-      Add_Category(cat_list()\cat_Beta_0toZ_Q(),cat_list()\cat_Beta_0toZ_Q()\cat_name,"Q")
-      Add_Category(cat_list()\cat_Beta_0toZ_R(),cat_list()\cat_Beta_0toZ_R()\cat_name,"R")
-      Add_Category(cat_list()\cat_Beta_0toZ_S(),cat_list()\cat_Beta_0toZ_S()\cat_name,"S")
-      Add_Category(cat_list()\cat_Beta_0toZ_T(),cat_list()\cat_Beta_0toZ_T()\cat_name,"T")
-      Add_Category(cat_list()\cat_Beta_0toZ_U(),cat_list()\cat_Beta_0toZ_U()\cat_name,"U")
-      Add_Category(cat_list()\cat_Beta_0toZ_V(),cat_list()\cat_Beta_0toZ_V()\cat_name,"V")
-      Add_Category(cat_list()\cat_Beta_0toZ_W(),cat_list()\cat_Beta_0toZ_W()\cat_name,"W")
-      Add_Category(cat_list()\cat_Beta_0toZ_X(),cat_list()\cat_Beta_0toZ_X()\cat_name,"X")
-      Add_Category(cat_list()\cat_Beta_0toZ_Y(),cat_list()\cat_Beta_0toZ_Y()\cat_name,"Y")
-      Add_Category(cat_list()\cat_Beta_0toZ_Z(),cat_list()\cat_Beta_0toZ_Z()\cat_name,"Z")
-      If Filter(0)\F_Mags=#True : AddGadgetItem(#DOWNLOAD_LIST,-1,"Magazines",0,0) : EndIf
-      Add_Category(cat_list()\cat_Magazine_0toZ_0(),cat_list()\cat_Magazine_0toZ_0()\cat_name,"0-9")
-      Add_Category(cat_list()\cat_Magazine_0toZ_A(),cat_list()\cat_Magazine_0toZ_A()\cat_name,"A")
-      Add_Category(cat_list()\cat_Magazine_0toZ_B(),cat_list()\cat_Magazine_0toZ_B()\cat_name,"B")
-      Add_Category(cat_list()\cat_Magazine_0toZ_C(),cat_list()\cat_Magazine_0toZ_C()\cat_name,"C")
-      Add_Category(cat_list()\cat_Magazine_0toZ_D(),cat_list()\cat_Magazine_0toZ_D()\cat_name,"D")
-      Add_Category(cat_list()\cat_Magazine_0toZ_E(),cat_list()\cat_Magazine_0toZ_E()\cat_name,"E")
-      Add_Category(cat_list()\cat_Magazine_0toZ_F(),cat_list()\cat_Magazine_0toZ_F()\cat_name,"F")
-      Add_Category(cat_list()\cat_Magazine_0toZ_G(),cat_list()\cat_Magazine_0toZ_G()\cat_name,"G")
-      Add_Category(cat_list()\cat_Magazine_0toZ_H(),cat_list()\cat_Magazine_0toZ_H()\cat_name,"H")
-      Add_Category(cat_list()\cat_Magazine_0toZ_I(),cat_list()\cat_Magazine_0toZ_I()\cat_name,"I")
-      Add_Category(cat_list()\cat_Magazine_0toZ_J(),cat_list()\cat_Magazine_0toZ_J()\cat_name,"J")
-      Add_Category(cat_list()\cat_Magazine_0toZ_K(),cat_list()\cat_Magazine_0toZ_K()\cat_name,"K")
-      Add_Category(cat_list()\cat_Magazine_0toZ_L(),cat_list()\cat_Magazine_0toZ_L()\cat_name,"L")
-      Add_Category(cat_list()\cat_Magazine_0toZ_M(),cat_list()\cat_Magazine_0toZ_M()\cat_name,"M")
-      Add_Category(cat_list()\cat_Magazine_0toZ_N(),cat_list()\cat_Magazine_0toZ_N()\cat_name,"N")
-      Add_Category(cat_list()\cat_Magazine_0toZ_O(),cat_list()\cat_Magazine_0toZ_O()\cat_name,"O")
-      Add_Category(cat_list()\cat_Magazine_0toZ_P(),cat_list()\cat_Magazine_0toZ_P()\cat_name,"P")
-      Add_Category(cat_list()\cat_Magazine_0toZ_Q(),cat_list()\cat_Magazine_0toZ_Q()\cat_name,"Q")
-      Add_Category(cat_list()\cat_Magazine_0toZ_R(),cat_list()\cat_Magazine_0toZ_R()\cat_name,"R")
-      Add_Category(cat_list()\cat_Magazine_0toZ_S(),cat_list()\cat_Magazine_0toZ_S()\cat_name,"S")
-      Add_Category(cat_list()\cat_Magazine_0toZ_T(),cat_list()\cat_Magazine_0toZ_T()\cat_name,"T")
-      Add_Category(cat_list()\cat_Magazine_0toZ_U(),cat_list()\cat_Magazine_0toZ_U()\cat_name,"U")
-      Add_Category(cat_list()\cat_Magazine_0toZ_V(),cat_list()\cat_Magazine_0toZ_V()\cat_name,"V")
-      Add_Category(cat_list()\cat_Magazine_0toZ_W(),cat_list()\cat_Magazine_0toZ_W()\cat_name,"W")
-      Add_Category(cat_list()\cat_Magazine_0toZ_X(),cat_list()\cat_Magazine_0toZ_X()\cat_name,"X")
-      Add_Category(cat_list()\cat_Magazine_0toZ_Y(),cat_list()\cat_Magazine_0toZ_Y()\cat_name,"Y")
-      Add_Category(cat_list()\cat_Magazine_0toZ_Z(),cat_list()\cat_Magazine_0toZ_Z()\cat_name,"Z")
-      
+    If A500Mini=#True
+      ClearList(Sort_List())
+      If ListSize(Down_List())<255
+        ForEach Down_List()
+          AddGadgetItem(#DOWNLOAD_LIST,-1,Down_List()\Down_Name)
+        Next
+      EndIf
+      If ListSize(Down_List())>255
+        count=0
+        ForEach Down_List()                 
+          count+1
+          AddElement(Sort_List())
+          Sort_List()=Down_List()\Down_Name
+          If count=255 Or ListIndex(Down_List())=ListSize(Down_List())-1
+            LastElement(Sort_List())
+            last_letter=Left(Sort_List(),1)
+            FirstElement(Sort_List())
+            old_letter=Left(Sort_List(),1)
+            AddGadgetItem(#DOWNLOAD_LIST,-1,UCase(old_letter)+"-"+UCase(last_letter),0,0)
+            ForEach Sort_List()
+              AddGadgetItem(#DOWNLOAD_LIST,-1,Sort_List(),0,1)
+            Next
+            ClearList(Sort_List())
+            count=0
+          EndIf
+        Next
+      EndIf
     EndIf
-  Else
-    Add_Category(cat_list()\cat_full(),cat_list()\cat_full()\cat_name,"Full")
+    
   EndIf
-
-  Resume_Window(#DOWNLOAD_WINDOW)
+  
+  If Sort_Type=2
+    Add_Category("Game","AGA")
+    Add_Category("Game","ECS-OCS")
+    Add_Category("Game","NTSC")
+    Add_Category("Game","Arcadia")
+    Add_Category("Game","CD32")
+    Add_Category("Game","CDTV")
+    Add_Category("Game","CDROM")
+    Add_Category("Game","French")
+    Add_Category("Game","German")
+    Add_Category("Game","Italian")
+    Add_Category("Game","Spanish")
+    Add_Category("Game","Greek")
+    Add_Category("Game","Danish")
+    Add_Category("Game","Dutch")
+    Add_Category("Game","Swedish")
+    Add_Category("Game","Polish")
+    Add_Category("Game","Czech")
+    Add_Category("Game","Multi")
+    Add_Category("Beta","Beta")
+    Add_Category("Demo","Demo")
+    Add_Category("Magazine","Magazine")
+  EndIf
+  
+  FreeList(Sort_List())
+  
+  Resume_Gadget(#DOWNLOAD_LIST)
   
 EndProcedure
 
 Procedure.b Download_Preview()
-    
-  AddElement(cat_list())
-  
-  ForEach Down_List() 
-    If Use_Subfolder
-      If Use_0toZ_Folder=1
-        If Down_List()\Down_Type="Game"
-          Select Down_List()\Down_Folder
-            Case "AGA" :  AddElement(cat_list()\cat_aga()) : cat_list()\cat_aga()\cat_name=Down_List()\Down_Name
-            Case "Arcadia" :  AddElement(cat_list()\cat_arcadia()) : cat_list()\cat_arcadia()\cat_name=Down_List()\Down_Name
-            Case "CD32" : AddElement(cat_list()\cat_cd32()): cat_list()\cat_cd32()\cat_name=Down_List()\Down_Name
-            Case "CDROM" : AddElement(cat_list()\cat_cdrom()) : cat_list()\cat_cdrom()\cat_name=Down_List()\Down_Name
-            Case "CDTV" : AddElement(cat_list()\cat_cdtv()) : cat_list()\cat_cdtv()\cat_name=Down_List()\Down_Name
-            Case "ECS-OCS" : AddElement(cat_list()\cat_ecsocs()) : cat_list()\cat_ecsocs()\cat_name=Down_List()\Down_Name
-            Case "NTSC" : AddElement(cat_list()\cat_ntsc()) : cat_list()\cat_ntsc()\cat_name=Down_List()\Down_Name
-            Case "French" : AddElement(cat_list()\cat_french()) : cat_list()\cat_french()\cat_name=Down_List()\Down_Name
-            Case "German" : AddElement(cat_list()\cat_german()) : cat_list()\cat_german()\cat_name=Down_List()\Down_Name
-            Case "Italian" : AddElement(cat_list()\cat_italian()) : cat_list()\cat_italian()\cat_name=Down_List()\Down_Name
-            Case "Spanish" : AddElement(cat_list()\cat_spanish()) : cat_list()\cat_spanish()\cat_name=Down_List()\Down_Name
-            Case "Polish" : AddElement(cat_list()\cat_polish()) : cat_list()\cat_polish()\cat_name=Down_List()\Down_Name
-            Case "Danish" : AddElement(cat_list()\cat_danish()) : cat_list()\cat_danish()\cat_name=Down_List()\Down_Name
-            Case "Dutch" : AddElement(cat_list()\cat_dutch()) : cat_list()\cat_dutch()\cat_name=Down_List()\Down_Name
-            Case "Greek" : AddElement(cat_list()\cat_greek()) : cat_list()\cat_greek()\cat_name=Down_List()\Down_Name
-            Case "Finnish" : AddElement(cat_list()\cat_finnish()) : cat_list()\cat_finnish()\cat_name=Down_List()\Down_Name
-            Case "Swedish" : AddElement(cat_list()\cat_multi()) : cat_list()\cat_multi()\cat_name=Down_List()\Down_Name
-            Case "Czech" : AddElement(cat_list()\cat_czech()) : cat_list()\cat_czech()\cat_name=Down_List()\Down_Name
-          EndSelect
-        EndIf
-        If Down_List()\Down_Type="Beta"
-          AddElement(cat_list()\cat_Beta_full()) : cat_list()\cat_Beta_full()\cat_name=Down_List()\Down_Name
-        EndIf
-        If Down_List()\Down_Type="Demo"
-          AddElement(cat_list()\cat_Demo_full()) : cat_list()\cat_Demo_full()\cat_name=Down_List()\Down_Name
-        EndIf
-        If Down_List()\Down_Type="Magazine"
-          AddElement(cat_list()\cat_Magazine_full()) : cat_list()\cat_Magazine_full()\cat_name=Down_List()\Down_Name
-        EndIf
-      EndIf
-      If Use_0toZ_Folder=0
-        If Down_List()\Down_Type="Game"
-          Select Down_List()\Down_0toZ
-            Case "0" :  AddElement(cat_list()\cat_0toZ_0()) : cat_list()\cat_0toZ_0()\cat_name=Down_List()\Down_Name
-            Case "A" :  AddElement(cat_list()\cat_0toZ_A()) : cat_list()\cat_0toZ_A()\cat_name=Down_List()\Down_Name
-            Case "B" :  AddElement(cat_list()\cat_0toZ_B()) : cat_list()\cat_0toZ_B()\cat_name=Down_List()\Down_Name
-            Case "C" :  AddElement(cat_list()\cat_0toZ_C()) : cat_list()\cat_0toZ_C()\cat_name=Down_List()\Down_Name
-            Case "D" :  AddElement(cat_list()\cat_0toZ_D()) : cat_list()\cat_0toZ_D()\cat_name=Down_List()\Down_Name
-            Case "E" :  AddElement(cat_list()\cat_0toZ_E()) : cat_list()\cat_0toZ_E()\cat_name=Down_List()\Down_Name
-            Case "F" :  AddElement(cat_list()\cat_0toZ_F()) : cat_list()\cat_0toZ_F()\cat_name=Down_List()\Down_Name
-            Case "G" :  AddElement(cat_list()\cat_0toZ_G()) : cat_list()\cat_0toZ_G()\cat_name=Down_List()\Down_Name
-            Case "H" :  AddElement(cat_list()\cat_0toZ_H()) : cat_list()\cat_0toZ_H()\cat_name=Down_List()\Down_Name
-            Case "I" :  AddElement(cat_list()\cat_0toZ_I()) : cat_list()\cat_0toZ_I()\cat_name=Down_List()\Down_Name
-            Case "J" :  AddElement(cat_list()\cat_0toZ_J()) : cat_list()\cat_0toZ_J()\cat_name=Down_List()\Down_Name
-            Case "K" :  AddElement(cat_list()\cat_0toZ_K()) : cat_list()\cat_0toZ_K()\cat_name=Down_List()\Down_Name
-            Case "L" :  AddElement(cat_list()\cat_0toZ_L()) : cat_list()\cat_0toZ_L()\cat_name=Down_List()\Down_Name
-            Case "M" :  AddElement(cat_list()\cat_0toZ_M()) : cat_list()\cat_0toZ_M()\cat_name=Down_List()\Down_Name
-            Case "N" :  AddElement(cat_list()\cat_0toZ_N()) : cat_list()\cat_0toZ_N()\cat_name=Down_List()\Down_Name
-            Case "O" :  AddElement(cat_list()\cat_0toZ_O()) : cat_list()\cat_0toZ_O()\cat_name=Down_List()\Down_Name
-            Case "P" :  AddElement(cat_list()\cat_0toZ_P()) : cat_list()\cat_0toZ_P()\cat_name=Down_List()\Down_Name
-            Case "Q" :  AddElement(cat_list()\cat_0toZ_Q()) : cat_list()\cat_0toZ_Q()\cat_name=Down_List()\Down_Name
-            Case "R" :  AddElement(cat_list()\cat_0toZ_R()) : cat_list()\cat_0toZ_R()\cat_name=Down_List()\Down_Name
-            Case "S" :  AddElement(cat_list()\cat_0toZ_S()) : cat_list()\cat_0toZ_S()\cat_name=Down_List()\Down_Name
-            Case "T" :  AddElement(cat_list()\cat_0toZ_T()) : cat_list()\cat_0toZ_T()\cat_name=Down_List()\Down_Name
-            Case "U" :  AddElement(cat_list()\cat_0toZ_U()) : cat_list()\cat_0toZ_U()\cat_name=Down_List()\Down_Name
-            Case "V" :  AddElement(cat_list()\cat_0toZ_V()) : cat_list()\cat_0toZ_V()\cat_name=Down_List()\Down_Name
-            Case "W" :  AddElement(cat_list()\cat_0toZ_W()) : cat_list()\cat_0toZ_W()\cat_name=Down_List()\Down_Name
-            Case "X" :  AddElement(cat_list()\cat_0toZ_X()) : cat_list()\cat_0toZ_X()\cat_name=Down_List()\Down_Name
-            Case "Y" :  AddElement(cat_list()\cat_0toZ_Y()) : cat_list()\cat_0toZ_Y()\cat_name=Down_List()\Down_Name
-            Case "Z" :  AddElement(cat_list()\cat_0toZ_Z()) : cat_list()\cat_0toZ_Y()\cat_name=Down_List()\Down_Name
-          EndSelect
-        EndIf
-        If Down_List()\Down_Type="Demo"
-          Select Down_List()\Down_0toZ
-            Case "0" :  AddElement(cat_list()\cat_Demo_0toZ_0()) : cat_list()\cat_Demo_0toZ_0()\cat_name=Down_List()\Down_Name
-            Case "A" :  AddElement(cat_list()\cat_Demo_0toZ_A()) : cat_list()\cat_Demo_0toZ_A()\cat_name=Down_List()\Down_Name
-            Case "B" :  AddElement(cat_list()\cat_Demo_0toZ_B()) : cat_list()\cat_Demo_0toZ_B()\cat_name=Down_List()\Down_Name
-            Case "C" :  AddElement(cat_list()\cat_Demo_0toZ_C()) : cat_list()\cat_Demo_0toZ_C()\cat_name=Down_List()\Down_Name
-            Case "D" :  AddElement(cat_list()\cat_Demo_0toZ_D()) : cat_list()\cat_Demo_0toZ_D()\cat_name=Down_List()\Down_Name
-            Case "E" :  AddElement(cat_list()\cat_Demo_0toZ_E()) : cat_list()\cat_Demo_0toZ_E()\cat_name=Down_List()\Down_Name
-            Case "F" :  AddElement(cat_list()\cat_Demo_0toZ_F()) : cat_list()\cat_Demo_0toZ_F()\cat_name=Down_List()\Down_Name
-            Case "G" :  AddElement(cat_list()\cat_Demo_0toZ_G()) : cat_list()\cat_Demo_0toZ_G()\cat_name=Down_List()\Down_Name
-            Case "H" :  AddElement(cat_list()\cat_Demo_0toZ_H()) : cat_list()\cat_Demo_0toZ_H()\cat_name=Down_List()\Down_Name
-            Case "I" :  AddElement(cat_list()\cat_Demo_0toZ_I()) : cat_list()\cat_Demo_0toZ_I()\cat_name=Down_List()\Down_Name
-            Case "J" :  AddElement(cat_list()\cat_Demo_0toZ_J()) : cat_list()\cat_Demo_0toZ_J()\cat_name=Down_List()\Down_Name
-            Case "K" :  AddElement(cat_list()\cat_Demo_0toZ_K()) : cat_list()\cat_Demo_0toZ_K()\cat_name=Down_List()\Down_Name
-            Case "L" :  AddElement(cat_list()\cat_Demo_0toZ_L()) : cat_list()\cat_Demo_0toZ_L()\cat_name=Down_List()\Down_Name
-            Case "M" :  AddElement(cat_list()\cat_Demo_0toZ_M()) : cat_list()\cat_Demo_0toZ_M()\cat_name=Down_List()\Down_Name
-            Case "N" :  AddElement(cat_list()\cat_Demo_0toZ_N()) : cat_list()\cat_Demo_0toZ_N()\cat_name=Down_List()\Down_Name
-            Case "O" :  AddElement(cat_list()\cat_Demo_0toZ_O()) : cat_list()\cat_Demo_0toZ_O()\cat_name=Down_List()\Down_Name
-            Case "P" :  AddElement(cat_list()\cat_Demo_0toZ_P()) : cat_list()\cat_Demo_0toZ_P()\cat_name=Down_List()\Down_Name
-            Case "Q" :  AddElement(cat_list()\cat_Demo_0toZ_Q()) : cat_list()\cat_Demo_0toZ_Q()\cat_name=Down_List()\Down_Name
-            Case "R" :  AddElement(cat_list()\cat_Demo_0toZ_R()) : cat_list()\cat_Demo_0toZ_R()\cat_name=Down_List()\Down_Name
-            Case "S" :  AddElement(cat_list()\cat_Demo_0toZ_S()) : cat_list()\cat_Demo_0toZ_S()\cat_name=Down_List()\Down_Name
-            Case "T" :  AddElement(cat_list()\cat_Demo_0toZ_T()) : cat_list()\cat_Demo_0toZ_T()\cat_name=Down_List()\Down_Name
-            Case "U" :  AddElement(cat_list()\cat_Demo_0toZ_U()) : cat_list()\cat_Demo_0toZ_U()\cat_name=Down_List()\Down_Name
-            Case "V" :  AddElement(cat_list()\cat_Demo_0toZ_V()) : cat_list()\cat_Demo_0toZ_V()\cat_name=Down_List()\Down_Name
-            Case "W" :  AddElement(cat_list()\cat_Demo_0toZ_W()) : cat_list()\cat_Demo_0toZ_W()\cat_name=Down_List()\Down_Name
-            Case "X" :  AddElement(cat_list()\cat_Demo_0toZ_X()) : cat_list()\cat_Demo_0toZ_X()\cat_name=Down_List()\Down_Name
-            Case "Y" :  AddElement(cat_list()\cat_Demo_0toZ_Y()) : cat_list()\cat_Demo_0toZ_Y()\cat_name=Down_List()\Down_Name
-            Case "Z" :  AddElement(cat_list()\cat_Demo_0toZ_Z()) : cat_list()\cat_Demo_0toZ_Z()\cat_name=Down_List()\Down_Name
-          EndSelect
-        EndIf
-        If Down_List()\Down_Type="Beta"
-          Select Down_List()\Down_0toZ
-            Case "0" :  AddElement(cat_list()\cat_Beta_0toZ_0()) : cat_list()\cat_Beta_0toZ_0()\cat_name=Down_List()\Down_Name
-            Case "A" :  AddElement(cat_list()\cat_Beta_0toZ_A()) : cat_list()\cat_Beta_0toZ_A()\cat_name=Down_List()\Down_Name
-            Case "B" :  AddElement(cat_list()\cat_Beta_0toZ_B()) : cat_list()\cat_Beta_0toZ_B()\cat_name=Down_List()\Down_Name
-            Case "C" :  AddElement(cat_list()\cat_Beta_0toZ_C()) : cat_list()\cat_Beta_0toZ_C()\cat_name=Down_List()\Down_Name
-            Case "D" :  AddElement(cat_list()\cat_Beta_0toZ_D()) : cat_list()\cat_Beta_0toZ_D()\cat_name=Down_List()\Down_Name
-            Case "E" :  AddElement(cat_list()\cat_Beta_0toZ_E()) : cat_list()\cat_Beta_0toZ_E()\cat_name=Down_List()\Down_Name
-            Case "F" :  AddElement(cat_list()\cat_Beta_0toZ_F()) : cat_list()\cat_Beta_0toZ_F()\cat_name=Down_List()\Down_Name
-            Case "G" :  AddElement(cat_list()\cat_Beta_0toZ_G()) : cat_list()\cat_Beta_0toZ_G()\cat_name=Down_List()\Down_Name
-            Case "H" :  AddElement(cat_list()\cat_Beta_0toZ_H()) : cat_list()\cat_Beta_0toZ_H()\cat_name=Down_List()\Down_Name
-            Case "I" :  AddElement(cat_list()\cat_Beta_0toZ_I()) : cat_list()\cat_Beta_0toZ_I()\cat_name=Down_List()\Down_Name
-            Case "J" :  AddElement(cat_list()\cat_Beta_0toZ_J()) : cat_list()\cat_Beta_0toZ_J()\cat_name=Down_List()\Down_Name
-            Case "K" :  AddElement(cat_list()\cat_Beta_0toZ_K()) : cat_list()\cat_Beta_0toZ_K()\cat_name=Down_List()\Down_Name
-            Case "L" :  AddElement(cat_list()\cat_Beta_0toZ_L()) : cat_list()\cat_Beta_0toZ_L()\cat_name=Down_List()\Down_Name
-            Case "M" :  AddElement(cat_list()\cat_Beta_0toZ_M()) : cat_list()\cat_Beta_0toZ_M()\cat_name=Down_List()\Down_Name
-            Case "N" :  AddElement(cat_list()\cat_Beta_0toZ_N()) : cat_list()\cat_Beta_0toZ_N()\cat_name=Down_List()\Down_Name
-            Case "O" :  AddElement(cat_list()\cat_Beta_0toZ_O()) : cat_list()\cat_Beta_0toZ_O()\cat_name=Down_List()\Down_Name
-            Case "P" :  AddElement(cat_list()\cat_Beta_0toZ_P()) : cat_list()\cat_Beta_0toZ_P()\cat_name=Down_List()\Down_Name
-            Case "Q" :  AddElement(cat_list()\cat_Beta_0toZ_Q()) : cat_list()\cat_Beta_0toZ_Q()\cat_name=Down_List()\Down_Name
-            Case "R" :  AddElement(cat_list()\cat_Beta_0toZ_R()) : cat_list()\cat_Beta_0toZ_R()\cat_name=Down_List()\Down_Name
-            Case "S" :  AddElement(cat_list()\cat_Beta_0toZ_S()) : cat_list()\cat_Beta_0toZ_S()\cat_name=Down_List()\Down_Name
-            Case "T" :  AddElement(cat_list()\cat_Beta_0toZ_T()) : cat_list()\cat_Beta_0toZ_T()\cat_name=Down_List()\Down_Name
-            Case "U" :  AddElement(cat_list()\cat_Beta_0toZ_U()) : cat_list()\cat_Beta_0toZ_U()\cat_name=Down_List()\Down_Name
-            Case "V" :  AddElement(cat_list()\cat_Beta_0toZ_V()) : cat_list()\cat_Beta_0toZ_V()\cat_name=Down_List()\Down_Name
-            Case "W" :  AddElement(cat_list()\cat_Beta_0toZ_W()) : cat_list()\cat_Beta_0toZ_W()\cat_name=Down_List()\Down_Name
-            Case "X" :  AddElement(cat_list()\cat_Beta_0toZ_X()) : cat_list()\cat_Beta_0toZ_X()\cat_name=Down_List()\Down_Name
-            Case "Y" :  AddElement(cat_list()\cat_Beta_0toZ_Y()) : cat_list()\cat_Beta_0toZ_Y()\cat_name=Down_List()\Down_Name
-            Case "Z" :  AddElement(cat_list()\cat_Beta_0toZ_Z()) : cat_list()\cat_Beta_0toZ_Z()\cat_name=Down_List()\Down_Name
-          EndSelect
-        EndIf
-        If Down_List()\Down_Type="Magazine"
-          Select Down_List()\Down_0toZ
-            Case "0" :  AddElement(cat_list()\cat_Magazine_0toZ_0()) : cat_list()\cat_Magazine_0toZ_0()\cat_name=Down_List()\Down_Name
-            Case "A" :  AddElement(cat_list()\cat_Magazine_0toZ_A()) : cat_list()\cat_Magazine_0toZ_A()\cat_name=Down_List()\Down_Name
-            Case "B" :  AddElement(cat_list()\cat_Magazine_0toZ_B()) : cat_list()\cat_Magazine_0toZ_B()\cat_name=Down_List()\Down_Name
-            Case "C" :  AddElement(cat_list()\cat_Magazine_0toZ_C()) : cat_list()\cat_Magazine_0toZ_C()\cat_name=Down_List()\Down_Name
-            Case "D" :  AddElement(cat_list()\cat_Magazine_0toZ_D()) : cat_list()\cat_Magazine_0toZ_D()\cat_name=Down_List()\Down_Name
-            Case "E" :  AddElement(cat_list()\cat_Magazine_0toZ_E()) : cat_list()\cat_Magazine_0toZ_E()\cat_name=Down_List()\Down_Name
-            Case "F" :  AddElement(cat_list()\cat_Magazine_0toZ_F()) : cat_list()\cat_Magazine_0toZ_F()\cat_name=Down_List()\Down_Name
-            Case "G" :  AddElement(cat_list()\cat_Magazine_0toZ_G()) : cat_list()\cat_Magazine_0toZ_G()\cat_name=Down_List()\Down_Name
-            Case "H" :  AddElement(cat_list()\cat_Magazine_0toZ_H()) : cat_list()\cat_Magazine_0toZ_H()\cat_name=Down_List()\Down_Name
-            Case "I" :  AddElement(cat_list()\cat_Magazine_0toZ_I()) : cat_list()\cat_Magazine_0toZ_I()\cat_name=Down_List()\Down_Name
-            Case "J" :  AddElement(cat_list()\cat_Magazine_0toZ_J()) : cat_list()\cat_Magazine_0toZ_J()\cat_name=Down_List()\Down_Name
-            Case "K" :  AddElement(cat_list()\cat_Magazine_0toZ_K()) : cat_list()\cat_Magazine_0toZ_K()\cat_name=Down_List()\Down_Name
-            Case "L" :  AddElement(cat_list()\cat_Magazine_0toZ_L()) : cat_list()\cat_Magazine_0toZ_L()\cat_name=Down_List()\Down_Name
-            Case "M" :  AddElement(cat_list()\cat_Magazine_0toZ_M()) : cat_list()\cat_Magazine_0toZ_M()\cat_name=Down_List()\Down_Name
-            Case "N" :  AddElement(cat_list()\cat_Magazine_0toZ_N()) : cat_list()\cat_Magazine_0toZ_N()\cat_name=Down_List()\Down_Name
-            Case "O" :  AddElement(cat_list()\cat_Magazine_0toZ_O()) : cat_list()\cat_Magazine_0toZ_O()\cat_name=Down_List()\Down_Name
-            Case "P" :  AddElement(cat_list()\cat_Magazine_0toZ_P()) : cat_list()\cat_Magazine_0toZ_P()\cat_name=Down_List()\Down_Name
-            Case "Q" :  AddElement(cat_list()\cat_Magazine_0toZ_Q()) : cat_list()\cat_Magazine_0toZ_Q()\cat_name=Down_List()\Down_Name
-            Case "R" :  AddElement(cat_list()\cat_Magazine_0toZ_R()) : cat_list()\cat_Magazine_0toZ_R()\cat_name=Down_List()\Down_Name
-            Case "S" :  AddElement(cat_list()\cat_Magazine_0toZ_S()) : cat_list()\cat_Magazine_0toZ_S()\cat_name=Down_List()\Down_Name
-            Case "T" :  AddElement(cat_list()\cat_Magazine_0toZ_T()) : cat_list()\cat_Magazine_0toZ_T()\cat_name=Down_List()\Down_Name
-            Case "U" :  AddElement(cat_list()\cat_Magazine_0toZ_U()) : cat_list()\cat_Magazine_0toZ_U()\cat_name=Down_List()\Down_Name
-            Case "V" :  AddElement(cat_list()\cat_Magazine_0toZ_V()) : cat_list()\cat_Magazine_0toZ_V()\cat_name=Down_List()\Down_Name
-            Case "W" :  AddElement(cat_list()\cat_Magazine_0toZ_W()) : cat_list()\cat_Magazine_0toZ_W()\cat_name=Down_List()\Down_Name
-            Case "X" :  AddElement(cat_list()\cat_Magazine_0toZ_X()) : cat_list()\cat_Magazine_0toZ_X()\cat_name=Down_List()\Down_Name
-            Case "Y" :  AddElement(cat_list()\cat_Magazine_0toZ_Y()) : cat_list()\cat_Magazine_0toZ_Y()\cat_name=Down_List()\Down_Name
-            Case "Z" :  AddElement(cat_list()\cat_Magazine_0toZ_Z()) : cat_list()\cat_Magazine_0toZ_Z()\cat_name=Down_List()\Down_Name
-          EndSelect
-        EndIf 
-      EndIf
-    Else
-      AddElement(cat_list()\cat_full()) : cat_list()\cat_full()\cat_name=Down_List()\Down_Name
-    EndIf
-  Next
-  
+ 
   Protected oldgadgetlist.l, proc_return.b
   
   If OpenWindow(#DOWNLOAD_WINDOW,0,0,300,470,"FTP Download ("+Str(ListSize(Down_List()))+" Files)",#PB_Window_Tool|#PB_Window_WindowCentered,WindowID(#MAIN_WINDOW))
@@ -2306,23 +2093,19 @@ Procedure.b Download_Preview()
     oldgadgetlist=UseGadgetList(WindowID(#DOWNLOAD_WINDOW))
     
     TreeGadget(#DOWNLOAD_LIST,0,0,300,400)
-    CheckBoxGadget(#DOWNLOAD_A500MINI,35,402,230,20," 256 Files Per Folder (For FAT32 Devices)",#PB_CheckBox_Center)
+    CheckBoxGadget(#DOWNLOAD_A500MINI,35,402,230,20," 255 Files Per Folder (For FAT32 Devices)",#PB_CheckBox_Center)
     ButtonGadget(#DOWNLOAD_YES,5,425,140,40,"Start Download")
     ButtonGadget(#DOWNLOAD_NO,155,425,140,40,"Cancel")
   
-    
     SetGadgetState(#DOWNLOAD_A500MINI,A500Mini)
     
-    If Use_Subfolder=#False
-      A500Mini=#False
-      SetGadgetState(#DOWNLOAD_A500MINI,A500Mini)
-      DisableGadget(#DOWNLOAD_A500MINI,#True)
-    EndIf
-        
+    A500Mini=#False
+    SetGadgetState(#DOWNLOAD_A500MINI,A500Mini)
+    
+    Resume_Window(#DOWNLOAD_WINDOW)  
+    
     Draw_Preview()
-    
-    Resume_Window(#DOWNLOAD_WINDOW)      
-    
+      
     Repeat
       Event=WaitWindowEvent()
       Gadget=EventGadget()
@@ -2356,9 +2139,7 @@ Procedure.b Download_Preview()
     CloseWindow(#DOWNLOAD_WINDOW)
     
   EndIf
-  
-  ClearList(cat_list())
-  
+
   ProcedureReturn proc_return
   
 EndProcedure
@@ -2416,10 +2197,10 @@ Procedure Make_Folder()
       Protected system_menu.l
            
       ForEach Down_List()        
-        If Use_Subfolder And Folder_Structure; Create and add subfolder information to the downloads if selected
+        If Sort_Type<>0 And Folder_Structure; Create and add subfolder information to the downloads if selected
           CreateDirectory(Out_Folder+Down_List()\Down_Subfolder)
           Out_Path=Out_Folder+Down_List()\Down_Subfolder+Chr(92)+Down_List()\Down_Name
-          If Use_0toZ_Folder 
+          If Sort_Type 
             CreateDirectory(Out_Folder+Down_List()\Down_Subfolder+Down_List()\Down_Folder) 
             Out_Path=Out_Folder+Down_List()\Down_Subfolder+Down_List()\Down_Folder+Chr(92)+Down_List()\Down_Name
           EndIf
@@ -2470,6 +2251,145 @@ Procedure Make_Folder()
   
 EndProcedure
 
+Procedure Download_HTTP()
+  
+  Protected down_path.s
+  Protected cancel.b
+  Protected path$=""
+  Protected FileName$
+  Protected Keypressed$
+  
+  ClearList(Down_List())
+  
+  ForEach Filtered_List()
+    SelectElement(Game_List(),Filtered_List())
+    If Game_List()\File_Available<>#True ; if file not available locally add to downlist
+      AddElement(Down_List())
+      Down_List()\Down_Name=Game_List()\File_Name
+      Down_List()\Down_Type=Game_List()\File_Type
+      Down_List()\Down_Folder=Game_List()\File_SubFolder
+      Down_List()\Down_0toZ=Game_List()\File_SubFolder
+      If Game_List()\File_Type="Game" And Game_List()\File_BETA<>#True
+        If Split_Languages=0
+          If Game_List()\File_AGA And Game_List()\File_NTSC=#False : Down_List()\Down_Folder="AGA" : EndIf
+          If Game_List()\File_AGA=#False And Game_List()\File_NTSC=#False : Down_List()\Down_Folder="ECS-OCS" : EndIf
+          If Game_List()\File_Arcadia : Down_List()\Down_Folder="Arcadia" : EndIf
+          If Game_List()\File_CD32 And Game_List()\File_NTSC=#False : Down_List()\Down_Folder="CD32" : EndIf
+          If Game_List()\File_CDROM And Game_List()\File_NTSC=#False : Down_List()\Down_Folder="CDROM" : EndIf
+          If Game_List()\File_CDTV And Game_List()\File_NTSC=#False : Down_List()\Down_Folder="CDTV" : EndIf
+          If Game_List()\File_NTSC : Down_List()\Down_Folder="NTSC" : EndIf
+        EndIf
+        If Split_Languages=1
+          If Game_List()\File_AGA And Game_List()\File_NTSC=#False And Game_List()\File_Language="English" : Down_List()\Down_Folder="AGA" : EndIf 
+          If Game_List()\File_AGA=#False And Game_List()\File_NTSC=#False And Game_List()\File_Language="English" : Down_List()\Down_Folder="ECS-OCS" : EndIf
+          If Game_List()\File_Arcadia And Game_List()\File_Language="English" : Down_List()\Down_Folder="Arcadia" : EndIf
+          If Game_List()\File_CD32 And Game_List()\File_NTSC=#False And Game_List()\File_Language="English" : Down_List()\Down_Folder="CD32" : EndIf
+          If Game_List()\File_CDROM And Game_List()\File_NTSC=#False And Game_List()\File_Language="English" : Down_List()\Down_Folder="CDROM" : EndIf
+          If Game_List()\File_CDTV And Game_List()\File_NTSC=#False And Game_List()\File_Language="English" : Down_List()\Down_Folder="CDTV" : EndIf
+          If Game_List()\File_NTSC And Game_List()\File_Language="English" : Down_List()\Down_Folder="NTSC" : EndIf
+          If Game_List()\File_Language<>"English" : Down_List()\Down_Folder=Game_List()\File_Language : EndIf
+        EndIf
+        Down_List()\Down_Subfolder=WHD_Game_Folder+Chr(92)
+        Down_List()\Down_FTP_Folder=FTP_Game_Folder
+      EndIf 
+      If Game_List()\File_Type="Game" And Game_List()\File_BETA=#True
+        Down_List()\Down_Type="Beta"
+        Down_List()\Down_Folder="Beta"
+        Down_List()\Down_Subfolder=WHD_Beta_Folder+Chr(92)
+        Down_List()\Down_FTP_Folder=FTP_Beta_Folder
+      EndIf 
+      If Game_List()\File_Type="Demo" 
+        Down_List()\Down_Folder="Demo"
+        Down_List()\Down_Subfolder=WHD_Demo_Folder+Chr(92)
+        Down_List()\Down_FTP_Folder=FTP_Demo_Folder
+      EndIf          
+      If Game_List()\File_Type="Magazine" 
+        Down_List()\Down_Folder="Magazine"
+        Down_List()\Down_Subfolder=WHD_Mags_Folder+Chr(92)
+        Down_List()\Down_FTP_Folder=FTP_Mags_Folder
+      EndIf 
+    EndIf
+  Next   
+  
+  If ListSize(Down_List())>0   
+    
+    If Download_Preview()
+      
+      OpenConsole("HTTP Download (Press 'Esc' to cancel download.)")
+      Center_Console()   
+
+      If FileSize(WHD_Folder)<>-2 : CreateDirectory(WHD_Folder) : EndIf
+      
+      PrintNCol("Connected to Turran File Server",2,0)
+      PrintN("")
+      PrintNCol("Opening FTP Folder - "+HTTP_Server,9,0)     
+      PrintN("")
+      
+      ForEach Down_List() 
+        
+        Select Sort_Type
+            
+          Case 0
+            down_path=WHD_Folder+Down_List()\Down_Name
+            
+          Case 1
+            CreateDirectory(WHD_Folder+Down_List()\Down_Subfolder+Down_List()\Down_Folder) 
+            down_path=WHD_Folder+Down_List()\Down_Subfolder+Down_List()\Down_Folder+Chr(92)+Down_List()\Down_Name
+            
+          Case 2
+            CreateDirectory(WHD_Folder+Down_List()\Down_Subfolder+Down_List()\Down_Folder) 
+            down_path=WHD_Folder+Down_List()\Down_Subfolder+Down_List()\Down_Folder+Chr(92)+Down_List()\Down_Name
+            
+        EndSelect
+        
+;         ForEach Down_List()
+;           Debug HTTP_Server+"/"+Down_List()\Down_FTP_Folder+"/"+Down_List()\Down_Folder+"/"+Down_List()\Down_Name
+;         Next
+        
+        path$=HTTP_Server+"/"+Down_List()\Down_FTP_Folder+"/"+Down_List()\Down_Folder+"/"+Down_List()\Down_Name
+        path$=ReplaceString(path$," ","%20")
+        
+        Debug path$
+        Debug down_path
+        Debug FileSize(down_path)
+        
+;         If ReceiveHTTPFile(path$,Down_List()\Down_Name)  
+;           PrintN("Downloaded ("+Str(ListIndex(Down_List()))+" of "+Str(ListSize(Down_List()))+") - "+Down_List()\Down_Name+" ("+Str(FileSize(down_path))+" bytes)")  
+;         EndIf 
+
+        Keypressed$=Inkey()
+        
+        If Keypressed$=Chr(27)
+          PrintN("")
+          PrintNCol("*** Download Cancelled ***",4,0)
+          Delay(1000)
+          cancel=#True
+          Break
+        EndIf
+        
+      Next 
+
+      PrintN("")
+      PrintNCol("Connection Closed.",14,0)
+      PrintN("")
+      PrintNCol("Please donate to the Turran FTP. The link is on the 'About' window.",2,0)
+      Delay(3000)
+      CloseConsole()
+      
+    EndIf  
+    
+  Else
+    
+    MessageRequester("Information","Nothing to download!",#PB_MessageRequester_Ok|#PB_MessageRequester_Info)
+    
+  EndIf
+  
+  SetCurrentDirectory(Home_Path)
+  
+  ClearList(Down_List())
+  
+EndProcedure
+
 Procedure Download_FTP()
   
   Protected down_path.s, log_file.i
@@ -2492,7 +2412,7 @@ Procedure Download_FTP()
       Down_List()\Down_Folder=Game_List()\File_SubFolder
       Down_List()\Down_0toZ=Game_List()\File_SubFolder
       If Game_List()\File_Type="Game" And Game_List()\File_BETA<>#True
-        If Keep_Languages=0
+        If Split_Languages=0
           If Game_List()\File_AGA And Game_List()\File_NTSC=#False : Down_List()\Down_Folder="AGA" : EndIf
           If Game_List()\File_AGA=#False And Game_List()\File_NTSC=#False : Down_List()\Down_Folder="ECS-OCS" : EndIf
           If Game_List()\File_Arcadia : Down_List()\Down_Folder="Arcadia" : EndIf
@@ -2501,7 +2421,7 @@ Procedure Download_FTP()
           If Game_List()\File_CDTV And Game_List()\File_NTSC=#False : Down_List()\Down_Folder="CDTV" : EndIf
           If Game_List()\File_NTSC : Down_List()\Down_Folder="NTSC" : EndIf
         EndIf
-        If Keep_Languages=1
+        If Split_Languages=1
           If Game_List()\File_AGA And Game_List()\File_NTSC=#False And Game_List()\File_Language="English" : Down_List()\Down_Folder="AGA" : EndIf 
           If Game_List()\File_AGA=#False And Game_List()\File_NTSC=#False And Game_List()\File_Language="English" : Down_List()\Down_Folder="ECS-OCS" : EndIf
           If Game_List()\File_Arcadia And Game_List()\File_Language="English" : Down_List()\Down_Folder="Arcadia" : EndIf
@@ -2572,10 +2492,10 @@ Procedure Download_FTP()
           FTPSetDir(hConnect,Down_List()\Down_Folder) ; Change to subfolder
           Delay(50)
           
-          If Use_Subfolder ; Create and add subfolder information to the downloads if selected
+          If Sort_Type<>0 ; Create and add subfolder information to the downloads if selected
             CreateDirectory(WHD_Folder+Down_List()\Down_Subfolder)
             down_path=WHD_Folder+Down_List()\Down_Subfolder+Chr(92)+Down_List()\Down_Name
-            If Use_0toZ_Folder 
+            If Sort_Type 
               CreateDirectory(WHD_Folder+Down_List()\Down_Subfolder+Down_List()\Down_Folder) 
               down_path=WHD_Folder+Down_List()\Down_Subfolder+Down_List()\Down_Folder+Chr(92)+Down_List()\Down_Name
             EndIf
@@ -2678,15 +2598,15 @@ Procedure Update_Files()
   ForEach Filtered_List()
     SelectElement(Game_List(),Filtered_List())
     If Game_List()\File_Available 
-      If Use_Subfolder=#False: Delete_Map(Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
-      If Use_Subfolder=#True
-        If Use_0toZ_Folder=#False 
+      If Sort_Type=0: Delete_Map(Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
+      If Sort_Type<>0
+        If Sort_Type=1
           If Game_List()\File_Type="Game" And Game_List()\File_BETA=#False  : Delete_Map(WHD_Game_Folder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
           If Game_List()\File_Type="Demo" : Delete_Map(WHD_Demo_Folder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
           If Game_List()\File_Type="Game"  And Game_List()\File_BETA=#True : Delete_Map(WHD_Beta_Folder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
           If Game_List()\File_Type="Magazine" : Delete_Map(WHD_Mags_Folder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
         EndIf
-        If Use_0toZ_Folder=#True
+        If Sort_Type=2
           If Game_List()\File_Type="Game" And Game_List()\File_BETA=#False : Delete_Map(WHD_Game_Folder+Chr(92)+Game_List()\File_SubFolder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
           If Game_List()\File_Type="Demo" : Delete_Map(WHD_Demo_Folder+Chr(92)+Game_List()\File_SubFolder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
           If Game_List()\File_Type="Game" And Game_List()\File_BETA=#True : Delete_Map(WHD_Beta_Folder+Chr(92)+Game_List()\File_SubFolder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
@@ -2699,7 +2619,7 @@ Procedure Update_Files()
   base_count=CountString(WHD_Folder,Chr(92))
   
   ForEach File_List()
-    If Use_Subfolder=#False 
+    If Sort_Type=0
       Count=base_count
       If Not FindMapElement(Delete_Map(),StringField(File_List(),Count+1,Chr(92)))
         If GetExtensionPart(File_List())="lha" Or GetExtensionPart(File_List())="lzx"
@@ -2709,7 +2629,7 @@ Procedure Update_Files()
       EndIf
     EndIf
     
-    If Use_Subfolder=#True And Use_0toZ_Folder=#False 
+    If Sort_Type=1
       Count=base_count+1
       If Not FindMapElement(Delete_Map(),StringField(File_List(),Count,Chr(92))+Chr(92)+StringField(File_List(),Count+1,Chr(92)))
         If GetExtensionPart(File_List())="lha" Or GetExtensionPart(File_List())="lzx"
@@ -2719,7 +2639,7 @@ Procedure Update_Files()
       EndIf
     EndIf
     
-    If Use_Subfolder=#True And Use_0toZ_Folder=#True
+    If Sort_Type=2
       Count=base_count+2
       If Not FindMapElement(Delete_Map(),StringField(File_List(),Count-1,Chr(92))+Chr(92)+StringField(File_List(),Count,Chr(92))+Chr(92)+StringField(File_List(),Count+1,Chr(92)))    
         If GetExtensionPart(File_List())="lha" Or GetExtensionPart(File_List())="lzx"
@@ -3373,58 +3293,60 @@ Procedure Main_Window()
   
   SetGadgetFont(#MAIN_LIST,FontID(#MAIN_FONT))
   
-  FrameGadget(#PB_Any,455,0,320,150,"FTP Info")
+  FrameGadget(#PB_Any,455,0,320,153,"Server Settings")
   
-  TextGadget(#PB_Any,465,25,60,25,"User Name")
-  StringGadget(#FTP_USER_STRING,535,22,230,25,ftp_user)
-  TextGadget(#PB_Any,465,55,60,25,"Password")
-  StringGadget(#FTP_PASS_STRING,535,52,230,25,ftp_pass)
-  TextGadget(#PB_Any,465,85,60,25,"Server")
-  StringGadget(#FTP_SERVER_STRING,535,82,150,25,ftp_server,#PB_String_ReadOnly)
-  TextGadget(#PB_Any,695,85,25,25,"Port")
-  StringGadget(#FTP_PORT_STRING,725,82,40,25,Str(ftp_port),#PB_String_ReadOnly)
-  TextGadget(#PB_Any,465,115,60,25,"FTP Folder")
-  StringGadget(#FTP_FOLDER_STRING,535,112,230,25,ftp_Folder,#PB_String_ReadOnly)
+  TextGadget(#PB_Any,465,20,60,22,"User Name")
+  StringGadget(#FTP_USER_STRING,535,18,235,22,ftp_user)
+  TextGadget(#PB_Any,465,47,60,22,"Password")
+  StringGadget(#FTP_PASS_STRING,535,45,235,22,ftp_pass)
+  TextGadget(#PB_Any,465,74,60,22,"Server")
+  StringGadget(#FTP_SERVER_STRING,535,72,150,22,ftp_server)
+  TextGadget(#PB_Any,695,74,25,25,"Port")
+  StringGadget(#FTP_PORT_STRING,725,72,45,22,Str(ftp_port),#PB_String_Numeric)
+  TextGadget(#PB_Any,465,100,60,22,"FTP Folder")
+  StringGadget(#FTP_FOLDER_STRING,535,98,235,22,ftp_Folder)
+  TextGadget(#PB_Any,465,127,60,22,"HTTP Path")
+  StringGadget(#HTTP_PATH_STRING,535,125,235,22,HTTP_Server)
   
-  FrameGadget(#PB_Any,455,150,320,190,"Folder Settings")
+  FrameGadget(#PB_Any,455,153,320,187,"Folder Settings")
   
-  TextGadget(#PB_Any,465,170,40,25,"Parent")  
-  StringGadget(#WHD_MAIN_STRING,510,167,162,25,WHD_Folder,#PB_String_ReadOnly)
-  ButtonGadget(#WHD_OPEN_PATH_BUTTON,682,167,40,25,"Open")
-  ButtonGadget(#WHD_SET_PATH_BUTTON,727,167,40,25,"Set")
+  TextGadget(#PB_Any,465,176,40,22,"Parent")  
+  StringGadget(#WHD_MAIN_STRING,510,174,162,22,WHD_Folder,#PB_String_ReadOnly)
+  ButtonGadget(#WHD_OPEN_PATH_BUTTON,682,174,40,22,"Open")
+  ButtonGadget(#WHD_SET_PATH_BUTTON,727,174,40,22,"Set")
   
-  CheckBoxGadget(#GAME_OPTION,465,198,20,20,"")
-  TextGadget(#PB_Any,485,200,40,25,"Games")
-  StringGadget(#WHD_GAME_STRING,530,197,192,25,WHD_Game_Folder)
-  ButtonGadget(#WHD_OPEN_GAME_BUTTON,727,197,40,25,"Open") 
+  CheckBoxGadget(#GAME_OPTION,465,202,20,20,"")
+  TextGadget(#PB_Any,485,203,40,22,"Games")
+  StringGadget(#WHD_GAME_STRING,530,200,192,22,WHD_Game_Folder)
+  ButtonGadget(#WHD_OPEN_GAME_BUTTON,727,200,40,22,"Open") 
   
-  CheckBoxGadget(#DEMO_OPTION,465,228,20,20,"")
-  TextGadget(#PB_Any,485,230,40,25,"Demos")
-  StringGadget(#WHD_DEMO_STRING,530,227,192,25,WHD_Demo_Folder)
-  ButtonGadget(#WHD_OPEN_DEMO_BUTTON,727,227,40,25,"Open")
+  CheckBoxGadget(#DEMO_OPTION,465,229,20,20,"")
+  TextGadget(#PB_Any,485,230,40,22,"Demos")
+  StringGadget(#WHD_DEMO_STRING,530,228,192,22,WHD_Demo_Folder)
+  ButtonGadget(#WHD_OPEN_DEMO_BUTTON,727,228,40,22,"Open")
   
-  CheckBoxGadget(#BETA_OPTION,465,258,20,20,"")
-  TextGadget(#PB_Any,485,260,40,25,"Beta")
-  StringGadget(#WHD_BETA_STRING,530,257,192,25,WHD_Beta_Folder)
-  ButtonGadget(#WHD_OPEN_BETA_BUTTON,727,257,40,25,"Open")
+  CheckBoxGadget(#BETA_OPTION,465,253,20,20,"")
+  TextGadget(#PB_Any,485,257,40,22,"Beta")
+  StringGadget(#WHD_BETA_STRING,530,255,192,22,WHD_Beta_Folder)
+  ButtonGadget(#WHD_OPEN_BETA_BUTTON,727,255,40,22,"Open")
   
-  TextGadget(#PB_Any,485,290,40,25,"Mags")
-  StringGadget(#WHD_MAGS_STRING,530,287,192,25,WHD_Mags_Folder)
-  ButtonGadget(#WHD_OPEN_MAGS_BUTTON,727,287,40,25,"Open")
-  CheckBoxGadget(#MAGS_OPTION,465,288,20,20,"")
-  
-  CheckBoxGadget(#WHD_SUBFOLDER_CHECK,465,315,100,21,"Use Subfolders")
-  SetGadgetState(#WHD_SUBFOLDER_CHECK,Use_Subfolder)
-  ComboBoxGadget(#WHD_0TOZ_CHECK,570,315,95,21)
-  AddGadgetItem(#WHD_0TOZ_CHECK,-1,"Sort By 0-Z")
-  AddGadgetItem(#WHD_0TOZ_CHECK,-1,"Sort By Category")
-  SetGadgetState(#WHD_0TOZ_CHECK,Use_0toZ_Folder)
-  ComboBoxGadget(#WHD_LANGUAGE_CHECK,670,315,100,21)
-  AddGadgetItem(#WHD_LANGUAGE_CHECK,-1,"Keep Languages")
+  CheckBoxGadget(#MAGS_OPTION,465,280,20,20,"")  
+  TextGadget(#PB_Any,485,284,40,22,"Mags")
+  StringGadget(#WHD_MAGS_STRING,530,282,192,22,WHD_Mags_Folder)
+  ButtonGadget(#WHD_OPEN_MAGS_BUTTON,727,282,40,22,"Open")
+
+  TextGadget(#PB_Any,465,312,75,22,"Sorting")
+  ComboBoxGadget(#WHD_SORT_COMBO,530,310,115,22)
+  AddGadgetItem(#WHD_SORT_COMBO,-1,"No Sort")
+  AddGadgetItem(#WHD_SORT_COMBO,-1,"Sort By 0-Z")
+  AddGadgetItem(#WHD_SORT_COMBO,-1,"Sort By Category")
+  SetGadgetState(#WHD_SORT_COMBO,Sort_Type)
+  ComboBoxGadget(#WHD_LANGUAGE_CHECK,650,310,120,22)
+  AddGadgetItem(#WHD_LANGUAGE_CHECK,-1,"Ignore Languages")
   AddGadgetItem(#WHD_LANGUAGE_CHECK,-1,"Split Languages")
-  SetGadgetState(#WHD_LANGUAGE_CHECK,Keep_Languages)
+  SetGadgetState(#WHD_LANGUAGE_CHECK,Split_Languages)
   
-  If Use_Subfolder
+  If Sort_Type<>0
     DisableGadget(#WHD_GAME_STRING,#False)
     DisableGadget(#WHD_OPEN_GAME_BUTTON,#False)
     DisableGadget(#WHD_DEMO_STRING,#False)
@@ -3433,7 +3355,7 @@ Procedure Main_Window()
     DisableGadget(#WHD_OPEN_BETA_BUTTON,#False)
     DisableGadget(#WHD_MAGS_STRING,#False)
     DisableGadget(#WHD_OPEN_MAGS_BUTTON,#False)
-    DisableGadget(#WHD_0TOZ_CHECK,#False)
+    DisableGadget(#WHD_SORT_COMBO,#False)
     DisableGadget(#WHD_LANGUAGE_CHECK,#False)
   Else
     DisableGadget(#WHD_GAME_STRING,#True)
@@ -3444,7 +3366,7 @@ Procedure Main_Window()
     DisableGadget(#WHD_OPEN_BETA_BUTTON,#True)
     DisableGadget(#WHD_MAGS_STRING,#True)
     DisableGadget(#WHD_OPEN_MAGS_BUTTON,#True)
-    DisableGadget(#WHD_0TOZ_CHECK,#True)
+    DisableGadget(#WHD_SORT_COMBO,#True)
     DisableGadget(#WHD_LANGUAGE_CHECK,#True)
   EndIf
   
@@ -3493,8 +3415,12 @@ Procedure Main_Window()
   
   FrameGadget(#PB_Any,780,0,90,95,"FTP Actions")
   
-  ButtonGadget(#SCAN_BUTTON,785,20,80,30,"Load Data")
-  ButtonGadget(#DOWNLOAD_BUTTON,785,55,80,30,"Download")
+  ButtonGadget(#SCAN_BUTTON,785,20,80,20,"Load Data")
+  ButtonGadget(#DOWNLOAD_BUTTON,785,45,80,20,"Download")
+  ComboBoxGadget(#DOWNLOAD_TYPE_COMBO,785,70,80,22)
+  AddGadgetItem(#DOWNLOAD_TYPE_COMBO,-1,"FTP")
+  AddGadgetItem(#DOWNLOAD_TYPE_COMBO,-1,"HTTP")
+  SetGadgetState(#DOWNLOAD_TYPE_COMBO,Download_Type)
   
   FrameGadget(#PB_Any,780,95,90,195,"Lists")
   
@@ -3597,9 +3523,14 @@ Repeat
   
   Select Gadget
       
-    Case #WHD_SUBFOLDER_CHECK
-      Use_Subfolder=GetGadgetState(#WHD_SUBFOLDER_CHECK)
-      If Use_Subfolder
+    Case #DOWNLOAD_TYPE_COMBO
+      If type=#PB_EventType_Change
+        Download_Type=GetGadgetState(#DOWNLOAD_TYPE_COMBO)
+      EndIf
+            
+    Case #WHD_SORT_COMBO
+      Sort_Type=GetGadgetState(#WHD_SORT_COMBO)
+      If Sort_Type<>0
         DisableGadget(#WHD_GAME_STRING,#False)
         DisableGadget(#WHD_OPEN_GAME_BUTTON,#False)
         DisableGadget(#WHD_DEMO_STRING,#False)
@@ -3608,16 +3539,14 @@ Repeat
         DisableGadget(#WHD_OPEN_BETA_BUTTON,#False)
         DisableGadget(#WHD_MAGS_STRING,#False)
         DisableGadget(#WHD_OPEN_MAGS_BUTTON,#False)
-        DisableGadget(#WHD_0TOZ_CHECK,#False)
-        If Use_0toZ_Folder=0
-          DisableGadget(#WHD_LANGUAGE_CHECK,#True)
-        Else
+        If Sort_Type=2
           DisableGadget(#WHD_LANGUAGE_CHECK,#False)
+        Else
+          DisableGadget(#WHD_LANGUAGE_CHECK,#True)
         EndIf
-      Else
-        Use_0toZ_Folder=0
-        SetGadgetState(#WHD_0TOZ_CHECK,0)
-        Keep_Languages=0
+      EndIf
+      If Sort_Type=0
+        Split_Languages=0
         SetGadgetState(#WHD_LANGUAGE_CHECK,0)
         DisableGadget(#WHD_GAME_STRING,#True)
         DisableGadget(#WHD_OPEN_GAME_BUTTON,#True)
@@ -3627,24 +3556,19 @@ Repeat
         DisableGadget(#WHD_OPEN_BETA_BUTTON,#True)
         DisableGadget(#WHD_MAGS_STRING,#True)
         DisableGadget(#WHD_OPEN_MAGS_BUTTON,#True)
-        DisableGadget(#WHD_0TOZ_CHECK,#True)
-        If Use_0toZ_Folder=0
-          DisableGadget(#WHD_LANGUAGE_CHECK,#True)
-        Else
-          DisableGadget(#WHD_LANGUAGE_CHECK,#False)
-        EndIf
+        DisableGadget(#WHD_LANGUAGE_CHECK,#True)
       EndIf
       
-    Case #WHD_0TOZ_CHECK
-      Use_0toZ_Folder=GetGadgetState(#WHD_0TOZ_CHECK)
-      If Use_0toZ_Folder=0
+    Case #WHD_SORT_COMBO
+      Sort_Type=GetGadgetState(#WHD_SORT_COMBO)
+      If Sort_Type=0
         DisableGadget(#WHD_LANGUAGE_CHECK,#True)
       Else
         DisableGadget(#WHD_LANGUAGE_CHECK,#False)
       EndIf
       
     Case #WHD_LANGUAGE_CHECK
-      Keep_Languages=GetGadgetState(#WHD_LANGUAGE_CHECK)
+      Split_Languages=GetGadgetState(#WHD_LANGUAGE_CHECK)
       
     Case #DONATE_BUTTON
       If  EventType()=#PB_EventType_LeftClick
@@ -3736,13 +3660,28 @@ Repeat
       
     Case #FTP_USER_STRING
       If Type=#PB_EventType_Change
-        ftp_user=GetGadgetText(#FTP_USER_STRING)
+        FTP_User=GetGadgetText(#FTP_USER_STRING)
       EndIf
       
     Case #FTP_PASS_STRING
       If Type=#PB_EventType_Change
-        ftp_pass=GetGadgetText(#FTP_PASS_STRING)
+        FTP_Pass=GetGadgetText(#FTP_PASS_STRING)
       EndIf 
+      
+    Case #FTP_PORT_STRING
+      If Type=#PB_EventType_Change
+        FTP_Port=Val(GetGadgetText(#FTP_PORT_STRING))
+      EndIf 
+      
+    Case #FTP_SERVER_STRING
+      If Type=#PB_EventType_Change
+        FTP_Server=GetGadgetText(#FTP_SERVER_STRING)
+      EndIf 
+      
+    Case #HTTP_PATH_STRING
+      If Type=#PB_EventType_Change
+        HTTP_Server=GetGadgetText(#HTTP_PATH_STRING)
+      EndIf   
       
     Case #LIST_LOAD_BUTTON
       Load_List()
@@ -3792,7 +3731,11 @@ Repeat
         If count=#PB_MessageRequester_Yes
           ClearList(Game_List())
           ClearGadgetItems(#MAIN_LIST)
-          Scan_FTP()
+          If Download_Type=0
+            Scan_FTP()
+          Else
+            Scan_HTTP()
+          EndIf
           If ListSize(Game_List())>0
             Scrape_Data()
             Disable_Gadgets(#False)
@@ -3800,16 +3743,25 @@ Repeat
           EndIf
         EndIf
       Else
-        Scan_FTP()
+        If Download_Type=0
+          Scan_FTP()
+        Else
+          Scan_HTTP()
+        EndIf
         If ListSize(Game_List())>0
           Scrape_Data()
           Disable_Gadgets(#False)
           Draw_List()
         EndIf
       EndIf
+      While WindowEvent() : Wend
       
-    Case #DOWNLOAD_BUTTON 
-      Download_FTP()
+    Case #DOWNLOAD_BUTTON
+      If Download_Type=0
+        Download_FTP()
+      Else
+        Download_HTTP()
+      EndIf
       Update_File_List()
       Draw_List()
       
@@ -3864,28 +3816,37 @@ Repeat
         SetGadgetText(#WHD_DEMO_STRING,WHD_Demo_Folder)
         SetGadgetText(#WHD_BETA_STRING,WHD_Beta_Folder)
         SetGadgetText(#WHD_MAGS_STRING,WHD_Mags_Folder)
-        SetGadgetState(#WHD_SUBFOLDER_CHECK,Use_Subfolder)
-        SetGadgetState(#WHD_0TOZ_CHECK,Use_0toZ_Folder)
-        If Use_Subfolder 
-          DisableGadget(#WHD_0TOZ_CHECK,#False)
+        SetGadgetState(#WHD_SORT_COMBO,Sort_Type)
+        
+        If Sort_Type<>0
           DisableGadget(#WHD_GAME_STRING,#False)
-          DisableGadget(#WHD_DEMO_STRING,#False)
-          DisableGadget(#WHD_BETA_STRING,#False)
-          DisableGadget(#WHD_MAGS_STRING,#False)
           DisableGadget(#WHD_OPEN_GAME_BUTTON,#False)
+          DisableGadget(#WHD_DEMO_STRING,#False)
           DisableGadget(#WHD_OPEN_DEMO_BUTTON,#False)
+          DisableGadget(#WHD_BETA_STRING,#False)
           DisableGadget(#WHD_OPEN_BETA_BUTTON,#False)
+          DisableGadget(#WHD_MAGS_STRING,#False)
           DisableGadget(#WHD_OPEN_MAGS_BUTTON,#False)
-        Else
-          DisableGadget(#WHD_0TOZ_CHECK,#True)
-          DisableGadget(#WHD_GAME_STRING,#True)
-          DisableGadget(#WHD_DEMO_STRING,#True)
-          DisableGadget(#WHD_BETA_STRING,#True)
-          DisableGadget(#WHD_OPEN_GAME_BUTTON,#True)
-          DisableGadget(#WHD_OPEN_DEMO_BUTTON,#True)
-          DisableGadget(#WHD_OPEN_BETA_BUTTON,#True)
-          DisableGadget(#WHD_OPEN_MAGS_BUTTON,#True)
+          If Sort_Type=2
+            DisableGadget(#WHD_LANGUAGE_CHECK,#False)
+          Else
+            DisableGadget(#WHD_LANGUAGE_CHECK,#True)
+          EndIf
         EndIf
+        If Sort_Type=0
+          Split_Languages=0
+          SetGadgetState(#WHD_LANGUAGE_CHECK,0)
+          DisableGadget(#WHD_GAME_STRING,#True)
+          DisableGadget(#WHD_OPEN_GAME_BUTTON,#True)
+          DisableGadget(#WHD_DEMO_STRING,#True)
+          DisableGadget(#WHD_OPEN_DEMO_BUTTON,#True)
+          DisableGadget(#WHD_BETA_STRING,#True)
+          DisableGadget(#WHD_OPEN_BETA_BUTTON,#True)
+          DisableGadget(#WHD_MAGS_STRING,#True)
+          DisableGadget(#WHD_OPEN_MAGS_BUTTON,#True)
+          DisableGadget(#WHD_LANGUAGE_CHECK,#True)
+        EndIf
+        
         Update_File_List()
         Set_Filter_Gadgets()
         Draw_List()
@@ -4035,9 +3996,9 @@ ForEver
 
 End
 ; IDE Options = PureBasic 6.00 LTS (Windows - x64)
-; CursorPosition = 135
-; FirstLine = 105
-; Folding = AAAAAAAAA5
+; CursorPosition = 3295
+; FirstLine = 567
+; Folding = AAAAAAAAAw
 ; Optimizer
 ; EnableXP
 ; DPIAware
