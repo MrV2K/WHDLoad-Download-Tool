@@ -110,22 +110,24 @@
 ;
 ; Fixed a bug in sub folder creation.
 ; Added ability to download to a folder structure based on category.
-; Changed 'Use Subfolder', 'Save Prefs' and 'Load Prefs' to be disabled until the database is loaded.
+; Changed 'Save Prefs' and 'Load Prefs' to be disabled until the database is loaded.
 ; Updated ftp login to ftp2.grandis.nu.
 ; Centered console on main window.
 ; Added HTTP based downloads.
-; HTTP & FTP now selectable fron the main window. HTTP now the default but setting saved in prefs file.
+; HTTP & FTP downloading now selectable fron the main window. HTTP now the default but setting saved in prefs file.
 ; Added HTTP path to main window and prefs. Editable in prefs file.
-; Removed Used Sub folders gadget and replaced with selectable combo gadget for sorting.
+; Removed 'Used Subfolders' gadget and replaced with selectable combo gadget for sorting downloads.
 ; Added preview to download procedure.
 ; Added 255 file limit to download folders for FAT32 devices.
+; All FTP and download gadgets are enabled.
+; FTP Procedure updated to 0-Z and category downloads.
+; Removed 'Make Folder' until I can make a better implementation of it.
 ;
 ;============================================
 ; To Do List
 ;============================================
 ;
 ; Add clean unneeded files to ftp download procedure.
-; Change database download to allow already downloaded files if FTP fails
 ; Update all procedures to work with category downloads.
 ;
 ;============================================
@@ -201,7 +203,6 @@ Enumeration
   #HELP_BUTTON
   #ABOUT_BUTTON
   #CLEAR_LANG_BUTTON
-  #MAKE_FOLDER_BUTTON
   
   #LIST_APPEND_BUTTON
   #LIST_LOAD_BUTTON
@@ -293,7 +294,6 @@ Structure Game_Data
   File_Version.s
   File_Ignore.b
   File_Extra.b
-  File_Category_Folder.s
 EndStructure
 
 Structure Filter_Data
@@ -335,6 +335,8 @@ Structure Down_Data
   Down_Type.s
   Down_Folder.s
   Down_FTP_Folder.s
+  Down_HTTP_Folder.s
+  Down_Download_Folder.s
   Down_Path.s
   Down_0toZ.s
 EndStructure
@@ -355,6 +357,11 @@ EndStructure
 Structure File_Data
   R_File_Size.l
   R_File_Name.s
+EndStructure
+
+Structure Sort_Struct
+  Sort_Name.s
+  Sort_Index.i
 EndStructure
 
 ;- ############### Lists
@@ -425,11 +432,11 @@ Declare Draw_List()
 
 Macro Center_Console()
   hWnd = GetConsoleWindow(0)
-  MoveWindow_(hWnd, DpiX(WindowX(#MAIN_WINDOW))+(WindowWidth(#MAIN_WINDOW)/8), DpiY(WindowY(#MAIN_WINDOW))+(WindowHeight(#MAIN_WINDOW)/8), WindowWidth(#MAIN_WINDOW)/1.25, WindowHeight(#MAIN_WINDOW)/1.25, 1)
+  MoveWindow_(hWnd, DpiX(WindowX(#MAIN_WINDOW))+(WindowWidth(#MAIN_WINDOW)/8), DpiY(WindowY(#MAIN_WINDOW))+(WindowHeight(#MAIN_WINDOW)/8), DpiX(WindowWidth(#MAIN_WINDOW)/1.25), DpiY(WindowHeight(#MAIN_WINDOW)/1.25), 1)
 EndMacro
 
 Macro Remove_Console_Close()
-    hWnd = GetConsoleWindow(0)
+  hWnd = GetConsoleWindow(0)
   DeleteMenu_(GetSystemMenu_(hWnd, #False), 6, #MF_BYPOSITION)
   SendMessage_(hWnd, #WM_NCPAINT, 1, 0)
 EndMacro
@@ -683,12 +690,7 @@ Procedure Set_List_Gadgets(bool)
 EndProcedure
 
 Procedure Disable_Gadgets(bool.b)
-  
-  DisableGadget(#GAME_OPTION,bool)
-  DisableGadget(#DEMO_OPTION,bool)
-  DisableGadget(#BETA_OPTION,bool)
-  DisableGadget(#MAGS_OPTION,bool)
-  
+   
   DisableGadget(#AMIGA_OPTION,bool)
   DisableGadget(#CD32_OPTION,bool)
   DisableGadget(#CDTV_OPTION,bool)
@@ -726,18 +728,13 @@ Procedure Disable_Gadgets(bool.b)
   DisableGadget(#RESET_BUTTON,bool)
   
   DisableGadget(#DOWNLOAD_BUTTON,bool)
-  DisableGadget(#MAKE_FOLDER_BUTTON,bool)
   
   DisableGadget(#LIST_EDIT_BUTTON,bool)
   DisableGadget(#LIST_LOAD_BUTTON,bool)
   DisableGadget(#LIST_SAVE_BUTTON,bool)
   
-  DisableGadget(#WHD_OPEN_PATH_BUTTON,bool)
-  DisableGadget(#WHD_SET_PATH_BUTTON,bool)
-  
   DisableGadget(#LOAD_PREFS_BUTTON,bool)
   DisableGadget(#SAVE_PREFS_BUTTON,bool)
-  DisableGadget(#WHD_SORT_COMBO,bool)
   
 EndProcedure
 
@@ -1030,25 +1027,10 @@ EndProcedure
 Procedure Filter_List()
   
   Protected NewMap File_Map.i();, filetype.s
+  ClearList(Filtered_List())
   
   ForEach Game_List()
-    If Sort_Type=0
-      File_Map(WHD_Folder+Game_List()\File_Name)=ListIndex(Game_List())
-    EndIf
-    If Sort_Type<>0
-      If Game_List()\File_Type="Game" And Game_List()\File_BETA=#False : File_Map(WHD_Folder+WHD_Game_Folder+Chr(92)+Game_List()\File_SubFolder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
-      If Game_List()\File_Type="Demo" : File_Map(WHD_Folder+WHD_Demo_Folder+Chr(92)+Game_List()\File_SubFolder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
-      If Game_List()\File_Type="Game" And Game_List()\File_BETA=#True : File_Map(WHD_Folder+WHD_Beta_Folder+Chr(92)+Game_List()\File_SubFolder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
-      If Game_List()\File_Type="Magazine" : File_Map(WHD_Folder+WHD_Mags_Folder+Chr(92)+Game_List()\File_SubFolder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
-    Else
-      If Game_List()\File_Type="Game" : File_Map(WHD_Folder+WHD_Game_Folder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
-      If Game_List()\File_Type="Demo" : File_Map(WHD_Folder+WHD_Demo_Folder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
-      If Game_List()\File_Type="Game" And Game_List()\File_BETA=#True : File_Map(WHD_Folder+WHD_Beta_Folder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
-      If Game_List()\File_Type="Magazine" : File_Map(WHD_Folder+WHD_Mags_Folder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) :EndIf
-    EndIf  
-  Next
-  
-  ForEach Game_List()
+    File_Map(Game_List()\File_Name)=ListIndex(Game_List())
     Game_List()\File_Available=#False
     Game_List()\File_Filtered=#False  
     If Game_List()\File_Ignore=#True : Game_List()\File_Filtered=#True : EndIf
@@ -1081,14 +1063,15 @@ Procedure Filter_List()
     If Filter(0)\F_Multi=#False And Game_List()\File_Language="Multi" : Game_List()\File_Filtered=#True : EndIf
     If Filter(0)\F_Polish=#False And Game_List()\File_Language="Polish" : Game_List()\File_Filtered=#True : EndIf
     If Filter(0)\F_Spanish=#False And Game_List()\File_Language="Spanish" : Game_List()\File_Filtered=#True : EndIf
-    If Filter(0)\F_Swedish=#False And Game_List()\File_Language="Swedish" : Game_List()\File_Filtered=#True : EndIf
+    If Filter(0)\F_Swedish=#False And Game_List()\File_Language="Swedish" : Game_List()\File_Filtered=#True : EndIf 
+    If Game_List()\File_Filtered=#False : AddElement(Filtered_List()) : Filtered_List()=ListIndex(Game_List()) : EndIf
+    If Game_List()\File_Filtered=#True And Game_List()\File_Extra=#True : AddElement(Filtered_List()) : Filtered_List()=ListIndex(Game_List()) : EndIf
   Next
   
   Avail_Games=0  
   
   ForEach File_List()  
-    Count=CountString(File_List(),Chr(92))
-    If FindMapElement(File_Map(),File_List())
+    If FindMapElement(File_Map(),GetFilePart(File_List()))
       SelectElement(Game_List(),File_Map())
       Game_List()\File_Available=#True
       Avail_Games+1
@@ -1097,13 +1080,6 @@ Procedure Filter_List()
   Next
   
   FreeMap(File_Map())
-  
-  ClearList(Filtered_List())
-  
-  ForEach Game_List()
-    If Game_List()\File_Filtered=#False : AddElement(Filtered_List()) : Filtered_List()=ListIndex(Game_List()) : EndIf
-    If Game_List()\File_Filtered=#True And Game_List()\File_Extra=#True : AddElement(Filtered_List()) : Filtered_List()=ListIndex(Game_List()) : EndIf
-  Next
   
 EndProcedure
 
@@ -1983,76 +1959,319 @@ Macro Add_Category(ftype,category)
   
   Count=0
   
-  If A500Mini=#False 
+  If Sort_Type=2
     ForEach Down_List()
       If Down_List()\Down_Type=ftype
         If Down_List()\Down_Folder=category
           AddElement(Sort_List())
-          Sort_List()=Down_List()\Down_Name
+          Sort_List()\Sort_Name=Down_List()\Down_Name
+          Sort_List()\Sort_Index=ListIndex(Down_List())
         EndIf
       EndIf
     Next 
+  EndIf
+  
+  If Sort_Type=1
+    ForEach Down_List()
+      If Down_List()\Down_Type=ftype
+        If Down_List()\Down_0toZ=category
+          AddElement(Sort_List())
+          Sort_List()\Sort_Name=Down_List()\Down_Name
+          Sort_List()\Sort_Index=ListIndex(Down_List())
+        EndIf
+      EndIf
+    Next 
+  EndIf 
+  
+  If ListSize(Sort_List())>0 : found=#True : EndIf
+  
+  If A500Mini=#False 
     If ListSize(Sort_List())>0
-      SortList(Sort_List(),#PB_Sort_Ascending|#PB_Sort_NoCase)
-      AddGadgetItem(#DOWNLOAD_LIST,-1,category+" ("+ListSize(Sort_List())+")",0,0)
+      AddGadgetItem(#DOWNLOAD_LIST,-1,category,0,1)
       ForEach Sort_List()
-        AddGadgetItem(#DOWNLOAD_LIST,-1,Sort_List(),0,1)
+        AddGadgetItem(#DOWNLOAD_LIST,-1,Sort_List()\Sort_Name,0,2)
+        SelectElement(Down_List(),Sort_List()\Sort_Index)
+        Down_List()\Down_Download_Folder=WHD_Folder+ftype+"\"+category+"\"
       Next    
     EndIf
+   EndIf
+  
+  If A500Mini=#True    
+    If ListSize(Sort_List())<=255 And ListSize(Sort_List())>0
+      AddGadgetItem(#DOWNLOAD_LIST,-1,category,0,1)
+      ForEach Sort_List()
+        AddGadgetItem(#DOWNLOAD_LIST,-1,Sort_List()\Sort_Name,0,2)
+        SelectElement(Down_List(),Sort_List()\Sort_Index)
+        Down_List()\Down_Download_Folder=WHD_Folder+ftype+"\"+category+"\"
+      Next    
+    EndIf
+    
+    If ListSize(Sort_List())>255       
+      count=0
+      c_count=1
+      AddGadgetItem(#DOWNLOAD_LIST,-1,category+"(0)",0,1)
+      ForEach Sort_List()
+        If count=255 Or ListIndex(Sort_List())=ListSize(Sort_List())
+          down_folder=category+"("+Str(c_count)+")"
+          AddGadgetItem(#DOWNLOAD_LIST,-1,down_folder,0,1)
+          c_count+1 
+        count=0
+        EndIf
+        AddGadgetItem(#DOWNLOAD_LIST,-1,Sort_List()\Sort_Name,0,2)
+        SelectElement(Down_List(),Sort_List()\Sort_Index)
+        Down_List()\Down_Download_Folder=WHD_Folder+ftype+"\"+category+"\"+down_folder+"\"+Down_List()\Down_Name
+        count+1
+      Next
+    EndIf
   EndIf
+
+EndMacro
+
+Macro Add_Unsorted(category,out_folder)
+  
+  ForEach Down_List()   
+    If Down_List()\Down_Type=category
+      AddElement(Sort_List())
+      Sort_List()\Sort_Name=Down_List()\Down_Name
+      Down_List()\Down_Download_Folder=WHD_Folder+out_folder+"\"
+    EndIf
+  Next
+  If ListSize(Sort_List())>0
+    AddGadgetItem(#DOWNLOAD_LIST,-1,out_folder,0,0)
+    ForEach Sort_List()   
+      AddGadgetItem(#DOWNLOAD_LIST,-1,Sort_List()\Sort_Name,0,1)
+    Next
+  EndIf
+  ClearList(Sort_List())
+  
+EndMacro
+
+Macro Add_Unsorted_A500(category,out_folder)
+  
+  If ListSize(Down_List())<=255
+    ForEach Down_List()   
+      If Down_List()\Down_Type=category
+        AddElement(Sort_List())
+        Sort_List()\Sort_Name=Down_List()\Down_Name
+        Down_List()\Down_Download_Folder=WHD_Folder+out_folder+"\"
+      EndIf
+    Next
+    If ListSize(Sort_List())>0
+      AddGadgetItem(#DOWNLOAD_LIST,-1,out_folder,0,0)
+      ForEach Sort_List()   
+        AddGadgetItem(#DOWNLOAD_LIST,-1,Sort_List()\Sort_Name,0,1)
+      Next
+    EndIf
+    ClearList(Sort_List())
+  EndIf
+  
+  If ListSize(Down_List())>255
+    count=0
+    found=#False
+    ForEach Down_List()     
+      If Down_List()\Down_Type=category
+        AddElement(Cat_List())
+        Cat_List()\Sort_Name=Down_List()\Down_Name
+        Cat_List()\Sort_Index=ListIndex(Down_List())
+      EndIf 
+    Next
+    
+    ForEach Cat_List()
+      count+1
+      AddElement(Sort_List())
+      Sort_List()\Sort_Name=Cat_List()\Sort_Name
+      Sort_List()\Sort_Index=Cat_List()\Sort_Index
+      If count=255 Or ListIndex(Cat_List())=ListSize(Cat_List())-1
+        If Not found : AddGadgetItem(#DOWNLOAD_LIST,-1,out_folder,0,0) : Found=#True : EndIf
+        If ListSize(Sort_List())>0
+          FirstElement(Sort_List())
+          first_letter=Left(Sort_List()\Sort_Name,2)
+          LastElement(Sort_List())
+          last_letter=Left(Sort_List()\Sort_Name,2)
+          down_folder=first_letter+"-"+last_letter
+          AddGadgetItem(#DOWNLOAD_LIST,-1,down_folder,0,1)
+          ForEach Sort_List()
+            AddGadgetItem(#DOWNLOAD_LIST,-1,Sort_List()\Sort_Name,0,2)
+            SelectElement(Down_List(),Sort_List()\Sort_Index)
+            Down_List()\Down_Download_Folder=WHD_Folder+out_folder+"\"+down_folder+"\"
+          Next
+          ClearList(Sort_List())
+          count=0
+        EndIf
+      EndIf
+    Next 
+  EndIf
+  
+  ClearList(Cat_List())
   
 EndMacro
 
 Procedure Draw_Preview()
   
-  Protected old_letter.s, last_letter.s
+  Protected first_letter.s, last_letter.s, old_first_letter.s, append_number.s, c_count.i, down_folder.s, found.b
   
-  NewList Sort_List.s()
+  NewList Cat_List.Sort_Struct()
+  NewList Sort_List.Sort_Struct()
   
   Pause_Gadget(#DOWNLOAD_LIST)
   
   ClearGadgetItems(#DOWNLOAD_LIST)
   
+  append_number=""
+  
+  found=#False
+  
+  c_count=1
+  
   If Sort_Type=0
     
     If A500Mini=#False
-      ForEach Down_List()
-        AddGadgetItem(#DOWNLOAD_LIST,-1,Down_List()\Down_Name)
-      Next
+      
+      Add_Unsorted("Game",WHD_Game_Folder)
+      Add_Unsorted("Demo",WHD_Demo_Folder)
+      Add_Unsorted("Beta",WHD_Beta_Folder)
+      Add_Unsorted("Magazine",WHD_Mags_Folder)
+      
     EndIf
     
+    
     If A500Mini=#True
-      ClearList(Sort_List())
-      If ListSize(Down_List())<255
-        ForEach Down_List()
-          AddGadgetItem(#DOWNLOAD_LIST,-1,Down_List()\Down_Name)
-        Next
-      EndIf
-      If ListSize(Down_List())>255
-        count=0
-        ForEach Down_List()                 
-          count+1
-          AddElement(Sort_List())
-          Sort_List()=Down_List()\Down_Name
-          If count=255 Or ListIndex(Down_List())=ListSize(Down_List())-1
-            LastElement(Sort_List())
-            last_letter=Left(Sort_List(),1)
-            FirstElement(Sort_List())
-            old_letter=Left(Sort_List(),1)
-            AddGadgetItem(#DOWNLOAD_LIST,-1,UCase(old_letter)+"-"+UCase(last_letter),0,0)
-            ForEach Sort_List()
-              AddGadgetItem(#DOWNLOAD_LIST,-1,Sort_List(),0,1)
-            Next
-            ClearList(Sort_List())
-            count=0
-          EndIf
-        Next
-      EndIf
+      
+      Add_Unsorted_A500("Game",WHD_Game_Folder)
+      Add_Unsorted_A500("Demo",WHD_Demo_Folder)
+      Add_Unsorted_A500("Beta",WHD_Beta_Folder)
+      Add_Unsorted_A500("Magazine",WHD_Mags_Folder)
+      
     EndIf
     
   EndIf
   
+  If Sort_Type=1
+    
+    AddGadgetItem(#DOWNLOAD_LIST,-1,WHD_Game_Folder,0,0)
+    Add_Category("Game","0")
+    Add_Category("Game","A")
+    Add_Category("Game","B")
+    Add_Category("Game","C")
+    Add_Category("Game","D")
+    Add_Category("Game","E")
+    Add_Category("Game","F")
+    Add_Category("Game","G")
+    Add_Category("Game","H")
+    Add_Category("Game","I")
+    Add_Category("Game","J")
+    Add_Category("Game","K")
+    Add_Category("Game","L")
+    Add_Category("Game","M")
+    Add_Category("Game","N")
+    Add_Category("Game","O")
+    Add_Category("Game","P")
+    Add_Category("Game","Q")
+    Add_Category("Game","R")
+    Add_Category("Game","S")
+    Add_Category("Game","T")
+    Add_Category("Game","U")
+    Add_Category("Game","V")
+    Add_Category("Game","W")
+    Add_Category("Game","X")
+    Add_Category("Game","Y")
+    Add_Category("Game","Z")
+    If found=#False : RemoveGadgetItem(#DOWNLOAD_LIST,CountGadgetItems(#DOWNLOAD_LIST)-1) : EndIf
+    found=#False
+    AddGadgetItem(#DOWNLOAD_LIST,-1,WHD_Demo_Folder,0,0)
+    Add_Category("Demo","0")
+    Add_Category("Demo","A")
+    Add_Category("Demo","B")
+    Add_Category("Demo","C")
+    Add_Category("Demo","D")
+    Add_Category("Demo","E")
+    Add_Category("Demo","F")
+    Add_Category("Demo","G")
+    Add_Category("Demo","H")
+    Add_Category("Demo","I")
+    Add_Category("Demo","J")
+    Add_Category("Demo","K")
+    Add_Category("Demo","L")
+    Add_Category("Demo","M")
+    Add_Category("Demo","N")
+    Add_Category("Demo","O")
+    Add_Category("Demo","P")
+    Add_Category("Demo","Q")
+    Add_Category("Demo","R")
+    Add_Category("Demo","S")
+    Add_Category("Demo","T")
+    Add_Category("Demo","U")
+    Add_Category("Demo","V")
+    Add_Category("Demo","W")
+    Add_Category("Demo","X")
+    Add_Category("Demo","Y")
+    Add_Category("Demo","Z")
+    If found=#False : RemoveGadgetItem(#DOWNLOAD_LIST,CountGadgetItems(#DOWNLOAD_LIST)-1) : EndIf
+    found=#False
+    AddGadgetItem(#DOWNLOAD_LIST,-1,WHD_Beta_Folder,0,0)
+    Add_Category("Beta","0")
+    Add_Category("Beta","A")
+    Add_Category("Beta","B")
+    Add_Category("Beta","C")
+    Add_Category("Beta","D")
+    Add_Category("Beta","E")
+    Add_Category("Beta","F")
+    Add_Category("Beta","G")
+    Add_Category("Beta","H")
+    Add_Category("Beta","I")
+    Add_Category("Beta","J")
+    Add_Category("Beta","K")
+    Add_Category("Beta","L")
+    Add_Category("Beta","M")
+    Add_Category("Beta","N")
+    Add_Category("Beta","O")
+    Add_Category("Beta","P")
+    Add_Category("Beta","Q")
+    Add_Category("Beta","R")
+    Add_Category("Beta","S")
+    Add_Category("Beta","T")
+    Add_Category("Beta","U")
+    Add_Category("Beta","V")
+    Add_Category("Beta","W")
+    Add_Category("Beta","X")
+    Add_Category("Beta","Y")
+    Add_Category("Beta","Z")
+    If found=#False : RemoveGadgetItem(#DOWNLOAD_LIST,CountGadgetItems(#DOWNLOAD_LIST)-1) : EndIf
+    found=#False
+    AddGadgetItem(#DOWNLOAD_LIST,-1,WHD_Mags_Folder,0,0)
+    Add_Category("Magazine","0")
+    Add_Category("Magazine","A")
+    Add_Category("Magazine","B")
+    Add_Category("Magazine","C")
+    Add_Category("Magazine","D")
+    Add_Category("Magazine","E")
+    Add_Category("Magazine","F")
+    Add_Category("Magazine","G")
+    Add_Category("Magazine","H")
+    Add_Category("Magazine","I")
+    Add_Category("Magazine","J")
+    Add_Category("Magazine","K")
+    Add_Category("Magazine","L")
+    Add_Category("Magazine","M")
+    Add_Category("Magazine","N")
+    Add_Category("Magazine","O")
+    Add_Category("Magazine","P")
+    Add_Category("Magazine","Q")
+    Add_Category("Magazine","R")
+    Add_Category("Magazine","S")
+    Add_Category("Magazine","T")
+    Add_Category("Magazine","U")
+    Add_Category("Magazine","V")
+    Add_Category("Magazine","W")
+    Add_Category("Magazine","X")
+    Add_Category("Magazine","Y")
+    Add_Category("Magazine","Z")
+    If found=#False : RemoveGadgetItem(#DOWNLOAD_LIST,CountGadgetItems(#DOWNLOAD_LIST)-1) : EndIf
+    found=#False
+  EndIf
+  
   If Sort_Type=2
+    AddGadgetItem(#DOWNLOAD_LIST,-1,WHD_Game_Folder,0,0)
     Add_Category("Game","AGA")
     Add_Category("Game","ECS-OCS")
     Add_Category("Game","NTSC")
@@ -2071,12 +2290,33 @@ Procedure Draw_Preview()
     Add_Category("Game","Polish")
     Add_Category("Game","Czech")
     Add_Category("Game","Multi")
-    Add_Category("Beta","Beta")
-    Add_Category("Demo","Demo")
+    If found=#False : RemoveGadgetItem(#DOWNLOAD_LIST,CountGadgetItems(#DOWNLOAD_LIST)-1) : EndIf
+    found=#False
+    AddGadgetItem(#DOWNLOAD_LIST,-1,WHD_Demo_Folder,0,0) 
+    Add_Category("Demo","AGA")
+    Add_Category("Demo","ECS-OCS")
+    If found=#False : RemoveGadgetItem(#DOWNLOAD_LIST,CountGadgetItems(#DOWNLOAD_LIST)-1) : EndIf
+    found=#False
+    AddGadgetItem(#DOWNLOAD_LIST,-1,WHD_Beta_Folder,0,0) 
+    Add_Category("Beta","AGA")
+    Add_Category("Beta","ECS-OCS")
+    Add_Category("Beta","NTSC")
+    Add_Category("Beta","Arcadia")
+    Add_Category("Beta","CD32")
+    Add_Category("Beta","CDTV")
+    Add_Category("Beta","CDROM")
+    If found=#False : RemoveGadgetItem(#DOWNLOAD_LIST,CountGadgetItems(#DOWNLOAD_LIST)-1) : EndIf
+    found=#False
+    AddGadgetItem(#DOWNLOAD_LIST,-1,WHD_Mags_Folder,0,0) 
     Add_Category("Magazine","Magazine")
+    If found=#False : RemoveGadgetItem(#DOWNLOAD_LIST,CountGadgetItems(#DOWNLOAD_LIST)-1) : EndIf
+    found=#False
   EndIf
   
+  TreeExpandAllItems(#DOWNLOAD_LIST)
+  
   FreeList(Sort_List())
+  FreeList(Cat_List())
   
   Resume_Gadget(#DOWNLOAD_LIST)
   
@@ -2093,7 +2333,7 @@ Procedure.b Download_Preview()
     oldgadgetlist=UseGadgetList(WindowID(#DOWNLOAD_WINDOW))
     
     TreeGadget(#DOWNLOAD_LIST,0,0,300,400)
-    CheckBoxGadget(#DOWNLOAD_A500MINI,35,402,230,20," 255 Files Per Folder (For FAT32 Devices)",#PB_CheckBox_Center)
+    CheckBoxGadget(#DOWNLOAD_A500MINI,35,402,230,20," 255 Files Per Folder (For A500 Mini)",#PB_CheckBox_Center)
     ButtonGadget(#DOWNLOAD_YES,5,425,140,40,"Start Download")
     ButtonGadget(#DOWNLOAD_NO,155,425,140,40,"Cancel")
   
@@ -2137,127 +2377,14 @@ Procedure.b Download_Preview()
     UseGadgetList(oldgadgetlist)
     
     CloseWindow(#DOWNLOAD_WINDOW)
-    
+        
   EndIf
 
   ProcedureReturn proc_return
   
 EndProcedure
 
-Procedure Make_Folder()
-  
-  Protected Out_Path.s, Out_Folder.s, In_Path.s
-  Protected conHandle.l
-  Protected cancel.b=#False
-  Protected Keypressed$
-  Protected Folder_Structure.b=#True
-  
-  ClearList(Down_List())
-  
-  Out_Folder=PathRequester("Select a folder",Home_Path)
-  
-  If Out_Folder<>""
-    
-    If MessageRequester("File Structure","Retain folder structure?",#PB_MessageRequester_Info|#PB_MessageRequester_YesNo)=#PB_MessageRequester_No
-      Folder_Structure=#False
-    EndIf
-    
-    ForEach Filtered_List()
-      SelectElement(Game_List(),Filtered_List())
-      If Game_List()\File_Available=#True ; if file not available locally add to downlist
-        AddElement(Down_List())
-        Down_List()\Down_Name=Game_List()\File_Name
-        Down_List()\Down_Folder=Game_List()\File_SubFolder
-        Down_List()\Down_Path=Game_List()\File_Path
-        If Game_List()\File_Type="Game" And Game_List()\File_BETA<>#True
-          Down_List()\Down_Subfolder=WHD_Game_Folder+Chr(92)
-          Down_List()\Down_FTP_Folder=WHD_Folder+WHD_Game_Folder
-        EndIf 
-        If Game_List()\File_Type="Game" And Game_List()\File_BETA=#True
-          Down_List()\Down_Subfolder=WHD_Beta_Folder+Chr(92)
-          Down_List()\Down_FTP_Folder=WHD_Folder+WHD_Beta_Folder
-        EndIf 
-        If Game_List()\File_Type="Demo" 
-          Down_List()\Down_Subfolder=WHD_Demo_Folder+Chr(92)
-          Down_List()\Down_FTP_Folder=WHD_Folder+WHD_Demo_Folder
-        EndIf          
-        If Game_List()\File_Type="Magazine" 
-          Down_List()\Down_Subfolder=WHD_Mags_Folder+Chr(92)
-          Down_List()\Down_FTP_Folder=WHD_Folder+WHD_Mags_Folder
-        EndIf 
-      EndIf
-    Next 
-        
-    If ListSize(Down_List())>0    
-      
-      OpenConsole("Make Game Folder (Press 'Esc' to cancel download.)")
-      Center_Console()
-      Remove_Console_Close()      
-      
-      Protected system_menu.l
-           
-      ForEach Down_List()        
-        If Sort_Type<>0 And Folder_Structure; Create and add subfolder information to the downloads if selected
-          CreateDirectory(Out_Folder+Down_List()\Down_Subfolder)
-          Out_Path=Out_Folder+Down_List()\Down_Subfolder+Chr(92)+Down_List()\Down_Name
-          If Sort_Type 
-            CreateDirectory(Out_Folder+Down_List()\Down_Subfolder+Down_List()\Down_Folder) 
-            Out_Path=Out_Folder+Down_List()\Down_Subfolder+Down_List()\Down_Folder+Chr(92)+Down_List()\Down_Name
-          EndIf
-        Else
-          Out_Path=Out_Folder+Down_List()\Down_Name
-        EndIf   
-        
-        PrintN("Copying "+Down_List()\Down_Name+" ("+Str(ListIndex(Down_List())+1)+" of "+Str(ListSize(Down_List())))
-        
-        CopyFile(Down_List()\Down_Path+"\"+Down_List()\Down_Name,Out_Path)
-        
-        Keypressed$=Inkey()
-        
-        If Keypressed$=Chr(27)
-          PrintN("")
-          PrintNCol("*** File copy cancelled. ***",4,0)
-          Delay(1000)
-          cancel=#True
-          Break
-        EndIf
-        
-      Next 
-      
-      RunProgram("file://"+Out_Folder)
-      
-    Else
-      
-      MessageRequester("Information","Nothing to copy!",#PB_MessageRequester_Ok|#PB_MessageRequester_Info)
-      
-    EndIf
-    
-    If cancel<>#True
-      PrintN("")
-      PrintNCol("File copy complete.",2,0)
-      Delay(3000)
-      CloseConsole()
-    EndIf
-    
-  Else
-    
-    MessageRequester("Error","No output folder.",#PB_MessageRequester_Ok|#PB_MessageRequester_Error)
-    
-  EndIf
-  
-  SetCurrentDirectory(Home_Path)
-  
-  ClearList(Down_List())
-  
-EndProcedure
-
-Procedure Download_HTTP()
-  
-  Protected down_path.s
-  Protected cancel.b
-  Protected path$=""
-  Protected FileName$
-  Protected Keypressed$
+Procedure Make_Download_List()
   
   ClearList(Down_List())
   
@@ -2294,12 +2421,14 @@ Procedure Download_HTTP()
       EndIf 
       If Game_List()\File_Type="Game" And Game_List()\File_BETA=#True
         Down_List()\Down_Type="Beta"
-        Down_List()\Down_Folder="Beta"
+        If Game_List()\File_AGA : Down_List()\Down_Folder="AGA" : EndIf
+        If Game_List()\File_AGA=#False : Down_List()\Down_Folder="ECS-OCS" : EndIf
         Down_List()\Down_Subfolder=WHD_Beta_Folder+Chr(92)
         Down_List()\Down_FTP_Folder=FTP_Beta_Folder
       EndIf 
       If Game_List()\File_Type="Demo" 
-        Down_List()\Down_Folder="Demo"
+        If Game_List()\File_AGA : Down_List()\Down_Folder="AGA" : EndIf
+        If Game_List()\File_AGA=#False : Down_List()\Down_Folder="ECS-OCS" : EndIf
         Down_List()\Down_Subfolder=WHD_Demo_Folder+Chr(92)
         Down_List()\Down_FTP_Folder=FTP_Demo_Folder
       EndIf          
@@ -2308,8 +2437,19 @@ Procedure Download_HTTP()
         Down_List()\Down_Subfolder=WHD_Mags_Folder+Chr(92)
         Down_List()\Down_FTP_Folder=FTP_Mags_Folder
       EndIf 
+      Down_List()\Down_HTTP_Folder=HTTP_Server+"/"+Down_List()\Down_FTP_Folder+"/"+Down_List()\Down_0toZ+"/"+Down_List()\Down_Name
     EndIf
-  Next   
+  Next  
+  
+EndProcedure
+
+Procedure Download_HTTP()
+  
+  Protected Keypressed$
+  
+  ClearList(Down_List())
+  
+  Make_Download_List()
   
   If ListSize(Down_List())>0   
     
@@ -2317,53 +2457,37 @@ Procedure Download_HTTP()
       
       OpenConsole("HTTP Download (Press 'Esc' to cancel download.)")
       Center_Console()   
-
+      
       If FileSize(WHD_Folder)<>-2 : CreateDirectory(WHD_Folder) : EndIf
       
       PrintNCol("Connected to Turran File Server",2,0)
       PrintN("")
-      PrintNCol("Opening FTP Folder - "+HTTP_Server,9,0)     
-      PrintN("")
       
       ForEach Down_List() 
+               
+        If CountString(Down_List()\Down_Download_Folder,"\")=8
+          If FileSize(WHD_Folder)<>-2 : CreateDirectory(WHD_Folder) : EndIf
+          If FileSize(WHD_Folder+StringField(Down_List()\Down_Download_Folder,8,"\"))<>-2 : CreateDirectory(WHD_Folder+StringField(Down_List()\Down_Download_Folder,8,"\")) : EndIf
+        EndIf  
         
-        Select Sort_Type
-            
-          Case 0
-            down_path=WHD_Folder+Down_List()\Down_Name
-            
-          Case 1
-            CreateDirectory(WHD_Folder+Down_List()\Down_Subfolder+Down_List()\Down_Folder) 
-            down_path=WHD_Folder+Down_List()\Down_Subfolder+Down_List()\Down_Folder+Chr(92)+Down_List()\Down_Name
-            
-          Case 2
-            CreateDirectory(WHD_Folder+Down_List()\Down_Subfolder+Down_List()\Down_Folder) 
-            down_path=WHD_Folder+Down_List()\Down_Subfolder+Down_List()\Down_Folder+Chr(92)+Down_List()\Down_Name
-            
-        EndSelect
+        If CountString(Down_List()\Down_Download_Folder,"\")=9 
+          If FileSize(WHD_Folder)<>-2 : CreateDirectory(WHD_Folder) : EndIf
+          If FileSize(WHD_Folder+StringField(Down_List()\Down_Download_Folder,8,"\"))<>-2 : CreateDirectory(WHD_Folder+StringField(Down_List()\Down_Download_Folder,8,"\")) : EndIf
+          If FileSize(WHD_Folder+StringField(Down_List()\Down_Download_Folder,9,"\"))<>-2 : CreateDirectory(WHD_Folder+StringField(Down_List()\Down_Download_Folder,8,"\")+"\"+StringField(Down_List()\Down_Download_Folder,9,"\")) : EndIf
+        EndIf
         
-;         ForEach Down_List()
-;           Debug HTTP_Server+"/"+Down_List()\Down_FTP_Folder+"/"+Down_List()\Down_Folder+"/"+Down_List()\Down_Name
-;         Next
+        If ReceiveHTTPFile(Down_List()\Down_HTTP_Folder,Down_List()\Down_Download_Folder+Down_List()\Down_Name)  
+          PrintN("Downloaded ("+Str(ListIndex(Down_List()))+" of "+Str(ListSize(Down_List()))+") - "+Down_List()\Down_Name+" ("+Str(FileSize(Down_List()\Down_Download_Folder+Down_List()\Down_Name))+" bytes)")  
+        Else
+          PrintNCol("*** Error ***",4,0)
+        EndIf 
         
-        path$=HTTP_Server+"/"+Down_List()\Down_FTP_Folder+"/"+Down_List()\Down_Folder+"/"+Down_List()\Down_Name
-        path$=ReplaceString(path$," ","%20")
-        
-        Debug path$
-        Debug down_path
-        Debug FileSize(down_path)
-        
-;         If ReceiveHTTPFile(path$,Down_List()\Down_Name)  
-;           PrintN("Downloaded ("+Str(ListIndex(Down_List()))+" of "+Str(ListSize(Down_List()))+") - "+Down_List()\Down_Name+" ("+Str(FileSize(down_path))+" bytes)")  
-;         EndIf 
-
         Keypressed$=Inkey()
         
         If Keypressed$=Chr(27)
           PrintN("")
           PrintNCol("*** Download Cancelled ***",4,0)
           Delay(1000)
-          cancel=#True
           Break
         EndIf
         
@@ -2386,13 +2510,11 @@ Procedure Download_HTTP()
   
   SetCurrentDirectory(Home_Path)
   
-  ClearList(Down_List())
-  
 EndProcedure
 
 Procedure Download_FTP()
   
-  Protected down_path.s, log_file.i
+  Protected log_file.i
   Protected ftp_log.s=""
   Protected log_path.s=Home_Path+"ftp.log"
   Protected conHandle.l, hInternet.l, hConnect.l
@@ -2403,52 +2525,7 @@ Procedure Download_FTP()
   
   ClearList(Down_List())
   
-  ForEach Filtered_List()
-    SelectElement(Game_List(),Filtered_List())
-    If Game_List()\File_Available<>#True ; if file not available locally add to downlist
-      AddElement(Down_List())
-      Down_List()\Down_Name=Game_List()\File_Name
-      Down_List()\Down_Type=Game_List()\File_Type
-      Down_List()\Down_Folder=Game_List()\File_SubFolder
-      Down_List()\Down_0toZ=Game_List()\File_SubFolder
-      If Game_List()\File_Type="Game" And Game_List()\File_BETA<>#True
-        If Split_Languages=0
-          If Game_List()\File_AGA And Game_List()\File_NTSC=#False : Down_List()\Down_Folder="AGA" : EndIf
-          If Game_List()\File_AGA=#False And Game_List()\File_NTSC=#False : Down_List()\Down_Folder="ECS-OCS" : EndIf
-          If Game_List()\File_Arcadia : Down_List()\Down_Folder="Arcadia" : EndIf
-          If Game_List()\File_CD32 And Game_List()\File_NTSC=#False : Down_List()\Down_Folder="CD32" : EndIf
-          If Game_List()\File_CDROM And Game_List()\File_NTSC=#False : Down_List()\Down_Folder="CDROM" : EndIf
-          If Game_List()\File_CDTV And Game_List()\File_NTSC=#False : Down_List()\Down_Folder="CDTV" : EndIf
-          If Game_List()\File_NTSC : Down_List()\Down_Folder="NTSC" : EndIf
-        EndIf
-        If Split_Languages=1
-          If Game_List()\File_AGA And Game_List()\File_NTSC=#False And Game_List()\File_Language="English" : Down_List()\Down_Folder="AGA" : EndIf 
-          If Game_List()\File_AGA=#False And Game_List()\File_NTSC=#False And Game_List()\File_Language="English" : Down_List()\Down_Folder="ECS-OCS" : EndIf
-          If Game_List()\File_Arcadia And Game_List()\File_Language="English" : Down_List()\Down_Folder="Arcadia" : EndIf
-          If Game_List()\File_CD32 And Game_List()\File_NTSC=#False And Game_List()\File_Language="English" : Down_List()\Down_Folder="CD32" : EndIf
-          If Game_List()\File_CDROM And Game_List()\File_NTSC=#False And Game_List()\File_Language="English" : Down_List()\Down_Folder="CDROM" : EndIf
-          If Game_List()\File_CDTV And Game_List()\File_NTSC=#False And Game_List()\File_Language="English" : Down_List()\Down_Folder="CDTV" : EndIf
-          If Game_List()\File_NTSC And Game_List()\File_Language="English" : Down_List()\Down_Folder="NTSC" : EndIf
-          If Game_List()\File_Language<>"English" : Down_List()\Down_Folder=Game_List()\File_Language : EndIf
-        EndIf
-        Down_List()\Down_Subfolder=WHD_Game_Folder+Chr(92)
-        Down_List()\Down_FTP_Folder=FTP_Game_Folder
-      EndIf 
-      If Game_List()\File_Type="Game" And Game_List()\File_BETA=#True
-        Down_List()\Down_Type="Beta"
-        Down_List()\Down_Subfolder=WHD_Beta_Folder+Chr(92)
-        Down_List()\Down_FTP_Folder=FTP_Beta_Folder
-      EndIf 
-      If Game_List()\File_Type="Demo" 
-        Down_List()\Down_Subfolder=WHD_Demo_Folder+Chr(92)
-        Down_List()\Down_FTP_Folder=FTP_Demo_Folder
-      EndIf          
-      If Game_List()\File_Type="Magazine" 
-        Down_List()\Down_Subfolder=WHD_Mags_Folder+Chr(92)
-        Down_List()\Down_FTP_Folder=FTP_Mags_Folder
-      EndIf 
-    EndIf
-  Next   
+  Make_Download_List()
   
   If ListSize(Down_List())>0   
     
@@ -2489,30 +2566,28 @@ Procedure Download_FTP()
           
           FTPSetDir(hConnect,Down_List()\Down_FTP_Folder) ; Change to FTP folder
           Delay(50)
-          FTPSetDir(hConnect,Down_List()\Down_Folder) ; Change to subfolder
+          FTPSetDir(hConnect,Down_List()\Down_0toZ) ; Change to subfolder
           Delay(50)
+                   
+          If CountString(Down_List()\Down_Download_Folder,"\")=8
+            If FileSize(WHD_Folder)<>-2 : CreateDirectory(WHD_Folder) : EndIf
+            If FileSize(WHD_Folder+StringField(Down_List()\Down_Download_Folder,8,"\"))<>-2 : CreateDirectory(WHD_Folder+StringField(Down_List()\Down_Download_Folder,8,"\")) : EndIf
+          EndIf  
           
-          If Sort_Type<>0 ; Create and add subfolder information to the downloads if selected
-            CreateDirectory(WHD_Folder+Down_List()\Down_Subfolder)
-            down_path=WHD_Folder+Down_List()\Down_Subfolder+Chr(92)+Down_List()\Down_Name
-            If Sort_Type 
-              CreateDirectory(WHD_Folder+Down_List()\Down_Subfolder+Down_List()\Down_Folder) 
-              down_path=WHD_Folder+Down_List()\Down_Subfolder+Down_List()\Down_Folder+Chr(92)+Down_List()\Down_Name
-            EndIf
-          Else
-            down_path=WHD_Folder+Down_List()\Down_Name
+          If CountString(Down_List()\Down_Download_Folder,"\")=9 
+            If FileSize(WHD_Folder)<>-2 : CreateDirectory(WHD_Folder) : EndIf
+            If FileSize(WHD_Folder+StringField(Down_List()\Down_Download_Folder,8,"\"))<>-2 : CreateDirectory(WHD_Folder+StringField(Down_List()\Down_Download_Folder,8,"\")) : EndIf
+            If FileSize(WHD_Folder+StringField(Down_List()\Down_Download_Folder,9,"\"))<>-2 : CreateDirectory(WHD_Folder+StringField(Down_List()\Down_Download_Folder,8,"\")+"\"+StringField(Down_List()\Down_Download_Folder,9,"\")) : EndIf
           EndIf   
           
-          Debug down_path
-          
-          If FTPDownload(hConnect,Down_List()\Down_Name,down_path)  
-            If FileSize(down_path)>0
-              PrintN("Downloading ("+Str(ListIndex(Down_List()))+" of "+Str(ListSize(Down_List()))+") - "+Down_List()\Down_Name+" ("+Str(FileSize(down_path))+" bytes)")
-              ftp_log+"Downloaded - " + Down_List()\Down_Name+" ("+Str(FileSize(down_path))+" bytes)"+#CRLF$    
+          If FTPDownload(hConnect,Down_List()\Down_Name,Down_List()\Down_Download_Folder+Down_List()\Down_Name)  
+            If FileSize(Down_List()\Down_Download_Folder+Down_List()\Down_Name)>0
+              PrintN("Downloading ("+Str(ListIndex(Down_List()))+" of "+Str(ListSize(Down_List()))+") - "+Down_List()\Down_Name+" ("+Str(FileSize(Down_List()\Down_Download_Folder+Down_List()\Down_Name))+" bytes)")
+              ftp_log+"Downloaded - " + Down_List()\Down_Name+" ("+Str(FileSize(Down_List()\Down_Download_Folder+Down_List()\Down_Name))+" bytes)"+#CRLF$    
             Else
               ftp_log+"No data received for file "+Down_List()\Down_Name+#CRLF$
               PrintNCol("No data received for file " + Down_List()\Down_Name,4,0)
-              DeleteFile(down_path)
+              DeleteFile(Down_List()\Down_Download_Folder+Down_List()\Down_Name)
             EndIf
           Else
             ftp_log+"Error downloading "+Down_List()\Down_Name+#CRLF$
@@ -2578,13 +2653,11 @@ Procedure Download_FTP()
   
   SetCurrentDirectory(Home_Path)
   
-  ClearList(Down_List())
-  
 EndProcedure
 
 Procedure Update_Files()
   
-  Protected oldgadgetlist.i, base_count.i
+  Protected oldgadgetlist.i, base_count.i, update.b
   
   Protected NewMap Delete_Map.i()
   Protected NewMap Archive_Map.s()
@@ -2593,205 +2666,163 @@ Procedure Update_Files()
   Protected NewList Own_Files.Own_Data()
   Protected NewList Zero_Files.s()
   
+  update=#False
+  
   ClearList(Delete_List())
   
-  ForEach Filtered_List()
-    SelectElement(Game_List(),Filtered_List())
-    If Game_List()\File_Available 
-      If Sort_Type=0: Delete_Map(Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
-      If Sort_Type<>0
-        If Sort_Type=1
-          If Game_List()\File_Type="Game" And Game_List()\File_BETA=#False  : Delete_Map(WHD_Game_Folder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
-          If Game_List()\File_Type="Demo" : Delete_Map(WHD_Demo_Folder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
-          If Game_List()\File_Type="Game"  And Game_List()\File_BETA=#True : Delete_Map(WHD_Beta_Folder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
-          If Game_List()\File_Type="Magazine" : Delete_Map(WHD_Mags_Folder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
-        EndIf
-        If Sort_Type=2
-          If Game_List()\File_Type="Game" And Game_List()\File_BETA=#False : Delete_Map(WHD_Game_Folder+Chr(92)+Game_List()\File_SubFolder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
-          If Game_List()\File_Type="Demo" : Delete_Map(WHD_Demo_Folder+Chr(92)+Game_List()\File_SubFolder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
-          If Game_List()\File_Type="Game" And Game_List()\File_BETA=#True : Delete_Map(WHD_Beta_Folder+Chr(92)+Game_List()\File_SubFolder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
-          If Game_List()\File_Type="Magazine" : Delete_Map(WHD_Mags_Folder+Chr(92)+Game_List()\File_SubFolder+Chr(92)+Game_List()\File_Name)=ListIndex(Game_List()) : EndIf
-        EndIf
-      EndIf
-    EndIf
-  Next  
+  ForEach Game_List()
+    Archive_Map(Game_List()\File_Name)=Game_List()\File_Name
+  Next
   
-  base_count=CountString(WHD_Folder,Chr(92))
+  Update_File_List()
   
   ForEach File_List()
-    If Sort_Type=0
-      Count=base_count
-      If Not FindMapElement(Delete_Map(),StringField(File_List(),Count+1,Chr(92)))
-        If GetExtensionPart(File_List())="lha" Or GetExtensionPart(File_List())="lzx"
-          AddElement(Delete_List())
-          Delete_List()=File_List()
-        EndIf
-      EndIf
+    If Not FindMapElement(Archive_Map(),GetFilePart(File_List()))
+      AddElement(Delete_List())
+      Delete_List()=File_List()
     EndIf
-    
-    If Sort_Type=1
-      Count=base_count+1
-      If Not FindMapElement(Delete_Map(),StringField(File_List(),Count,Chr(92))+Chr(92)+StringField(File_List(),Count+1,Chr(92)))
-        If GetExtensionPart(File_List())="lha" Or GetExtensionPart(File_List())="lzx"
-          AddElement(Delete_List())
-          Delete_List()=File_List()
-        EndIf
-      EndIf
-    EndIf
-    
-    If Sort_Type=2
-      Count=base_count+2
-      If Not FindMapElement(Delete_Map(),StringField(File_List(),Count-1,Chr(92))+Chr(92)+StringField(File_List(),Count,Chr(92))+Chr(92)+StringField(File_List(),Count+1,Chr(92)))    
-        If GetExtensionPart(File_List())="lha" Or GetExtensionPart(File_List())="lzx"
-          AddElement(Delete_List())
-          Delete_List()=File_List()
-        EndIf
-      EndIf
-    EndIf
-    
-  Next
-  
-  List_Files_Recursive_Size(WHD_Folder,File_List_Size(),"*.*")
-  
-  ForEach File_List_Size()
-    If File_List_Size()\R_File_Size=0
+    If FileSize(File_List())=0
       AddElement(Zero_Files())
-      Zero_Files()=File_List_Size()\R_File_Name
+      Zero_Files()=File_List()
     EndIf
   Next
   
-  ClearList(File_List_Size())
-  
-  OpenWindow(#DELETE_WINDOW,0,0,385,400,"Remove Un-Needed Files", #PB_Window_Tool|#PB_Window_WindowCentered,WindowID(#MAIN_WINDOW))
-  
-  oldgadgetlist=UseGadgetList(WindowID(#DELETE_WINDOW))
-  
-  DisableWindow(#MAIN_WINDOW,#True)
-  
-  Pause_Window(#DELETE_WINDOW)
-  
-  TreeGadget(#DELETE_LIST,0,0,385,360)
-  ButtonGadget(#DELETE_DEL_BUTTON,5,365,90,30,"Delete")
-  ButtonGadget(#DELETE_BACKUP_BUTTON,100,365,90,30,"Back Up")
-  ButtonGadget(#DELETE_OWN_BUTTON,195,365,90,30,"Own Files")
-  ButtonGadget(#DELETE_CANCEL_BUTTON,290,365,90,30,"Cancel")
-  
-  Pause_Gadget(#DELETE_LIST)
-  
-  If ListSize(Delete_List())>0
-    ForEach Delete_List()
-      AddGadgetItem(#DELETE_LIST,-1,Delete_List(),0,0)
-      AddGadgetItem(#DELETE_LIST,-1,"No longer needed!",0,1)
-      SetGadgetItemColor(#DELETE_LIST,-1,#PB_Gadget_FrontColor,#Red,1)
-    Next
-  EndIf
-  
-  If ListSize(Zero_Files())>0
-    ForEach Zero_Files()
-      AddGadgetItem(#DELETE_LIST,-1,Zero_Files(),0,0)
-      AddGadgetItem(#DELETE_LIST,-1,"0kb File!",0,1)
-      SetGadgetItemColor(#DELETE_LIST,-1,#PB_Gadget_FrontColor,#Red,1)
-    Next
-  EndIf
-  
-  MergeLists(Zero_Files(),Delete_List())
-  
-  Resume_Gadget(#DELETE_LIST)
-  
-  If ListSize(Delete_List())=0
-    DisableGadget(#DELETE_BACKUP_BUTTON,#True)
-    DisableGadget(#DELETE_DEL_BUTTON,#True)
-  EndIf
-  
-  TreeExpandAllItems(#DELETE_LIST)
-  
-  SetWindowTitle(#DELETE_WINDOW,"Remove Un-Needed Files ("+Str(ListSize(Delete_List()))+" files)")
-  
-  Resume_Window(#DELETE_WINDOW)
-  
-  Repeat
+  If ListSize(Delete_List())>0 Or ListSize(Zero_Files())>0
     
-    Event=WaitWindowEvent()
-    Gadget=EventGadget()
+    OpenWindow(#DELETE_WINDOW,0,0,385,400,"Remove Un-Needed Files", #PB_Window_Tool|#PB_Window_WindowCentered,WindowID(#MAIN_WINDOW))
     
-    Select Gadget
-        
-      Case #DELETE_CANCEL_BUTTON : Break
-        
-      Case #DELETE_DEL_BUTTON
-        If ListSize(Delete_List())>0
-          If MessageRequester("Warning","Delete listed files?",#PB_MessageRequester_Warning|#PB_MessageRequester_YesNo)=#PB_MessageRequester_Yes
-            ForEach Delete_List() 
-              DeleteFile(Delete_List())
-            Next
-            Break
-          EndIf         
-        Else
-          MessageRequester("Information","Nothing to delete.",#PB_MessageRequester_Info|#PB_MessageRequester_Ok)
-        EndIf
-        
-      Case #DELETE_BACKUP_BUTTON
-        If ListSize(Delete_List())>0
-          If MessageRequester("Warning","Back up listed files?",#PB_MessageRequester_Warning|#PB_MessageRequester_YesNo)=#PB_MessageRequester_Yes
-            ForEach Delete_List()
-              Count=CountString(Delete_List(),Chr(92))
-              Path=Home_Path+"Backup"
-              CreateDirectory(Path)
-              CopyFile(Delete_List(),Path+Chr(92)+GetFilePart(Delete_List()))
-              DeleteFile(Delete_List())
-            Next
-            Break
-          EndIf
-        Else
-          MessageRequester("Information","Nothing to move.",#PB_MessageRequester_Info|#PB_MessageRequester_Ok)
-        EndIf
-        
-      Case #DELETE_OWN_BUTTON
-        ClearList(Delete_List())
-        Path=PathRequester("Select a folder to scan.",Home_Path)
-        If Path<>""
-          List_Files_Recursive(Path,LHA_Files(),"*.*")
-          ForEach LHA_Files()
-            If GetExtensionPart(LHA_Files())="lha" Or GetExtensionPart(LHA_Files())="lzx"
-              AddElement(Own_Files())
-              Own_Files()\own_file=GetFilePart(LHA_Files())
-              Own_Files()\own_folder=GetPathPart(LHA_Files())
-            EndIf
-          Next
-          FreeList(LHA_Files())
-          FreeList(LZX_Files())
-          ForEach Game_List() ; Create a map of all the filenames in the database
-            Archive_Map(Game_List()\File_Name)=""
-          Next
-          ForEach Own_Files() ; Compare the filenames in the own list and add any to the delete list
-            If Not FindMapElement(Archive_Map(),Own_Files()\own_file)
-              AddElement(Delete_List())
-              Delete_List()=Own_Files()\own_folder+Own_Files()\own_file
-            EndIf
-          Next
-          ClearGadgetItems(#DELETE_LIST)
+    oldgadgetlist=UseGadgetList(WindowID(#DELETE_WINDOW))
+    
+    DisableWindow(#MAIN_WINDOW,#True)
+    
+    Pause_Window(#DELETE_WINDOW)
+    
+    TreeGadget(#DELETE_LIST,0,0,385,360)
+    ButtonGadget(#DELETE_DEL_BUTTON,5,365,90,30,"Delete")
+    ButtonGadget(#DELETE_BACKUP_BUTTON,100,365,90,30,"Back Up")
+    ButtonGadget(#DELETE_OWN_BUTTON,195,365,90,30,"Own Files")
+    ButtonGadget(#DELETE_CANCEL_BUTTON,290,365,90,30,"Cancel")
+    
+    Pause_Gadget(#DELETE_LIST)
+    
+    If ListSize(Delete_List())>0
+      ForEach Delete_List()
+        AddGadgetItem(#DELETE_LIST,-1,Delete_List(),0,0)
+        AddGadgetItem(#DELETE_LIST,-1,"No longer needed!",0,1)
+        SetGadgetItemColor(#DELETE_LIST,-1,#PB_Gadget_FrontColor,#Red,1)
+      Next
+    EndIf
+    
+    If ListSize(Zero_Files())>0
+      ForEach Zero_Files()
+        AddGadgetItem(#DELETE_LIST,-1,Zero_Files(),0,0)
+        AddGadgetItem(#DELETE_LIST,-1,"0kb File!",0,1)
+        SetGadgetItemColor(#DELETE_LIST,-1,#PB_Gadget_FrontColor,#Red,1)
+      Next
+    EndIf
+    
+    MergeLists(Zero_Files(),Delete_List())
+    
+    Resume_Gadget(#DELETE_LIST)
+    
+    If ListSize(Delete_List())=0
+      DisableGadget(#DELETE_BACKUP_BUTTON,#True)
+      DisableGadget(#DELETE_DEL_BUTTON,#True)
+    EndIf
+    
+    TreeExpandAllItems(#DELETE_LIST)
+    
+    SetWindowTitle(#DELETE_WINDOW,"Remove Un-Needed Files ("+Str(ListSize(Delete_List()))+" files)")
+    
+    Resume_Window(#DELETE_WINDOW)
+    
+    Repeat
+      
+      Event=WaitWindowEvent()
+      Gadget=EventGadget()
+      
+      Select Gadget
+          
+        Case #DELETE_CANCEL_BUTTON : Break
+          
+        Case #DELETE_DEL_BUTTON
           If ListSize(Delete_List())>0
-            ForEach Delete_List()
-              AddGadgetItem(#DELETE_LIST,-1,Delete_List(),0,0)
-              AddGadgetItem(#DELETE_LIST,-1,"No longer needed!",0,1)
-              SetGadgetItemColor(#DELETE_LIST,-1,#PB_Gadget_FrontColor,#Red,1)
-            Next
-            DisableGadget(#DELETE_BACKUP_BUTTON,#False)
-            DisableGadget(#DELETE_DEL_BUTTON,#False) 
-            TreeExpandAllItems(#DELETE_LIST)
+            If MessageRequester("Warning","Delete listed files?",#PB_MessageRequester_Warning|#PB_MessageRequester_YesNo)=#PB_MessageRequester_Yes
+              ForEach Delete_List() 
+                DeleteFile(Delete_List())
+              Next
+              Break
+            EndIf         
           Else
             MessageRequester("Information","Nothing to delete.",#PB_MessageRequester_Info|#PB_MessageRequester_Ok)
           EndIf
-          SetWindowTitle(#DELETE_WINDOW,"Remove Un-Needed Files ("+Str(ListSize(Delete_List()))+" files)")
-        EndIf
-        
-    EndSelect
+          
+        Case #DELETE_BACKUP_BUTTON
+          If ListSize(Delete_List())>0
+            If MessageRequester("Warning","Back up listed files?",#PB_MessageRequester_Warning|#PB_MessageRequester_YesNo)=#PB_MessageRequester_Yes
+              ForEach Delete_List()
+                Count=CountString(Delete_List(),Chr(92))
+                Path=Home_Path+"Backup"
+                CreateDirectory(Path)
+                CopyFile(Delete_List(),Path+Chr(92)+GetFilePart(Delete_List()))
+                DeleteFile(Delete_List())
+              Next
+              Break
+            EndIf
+          Else
+            MessageRequester("Information","Nothing to move.",#PB_MessageRequester_Info|#PB_MessageRequester_Ok)
+          EndIf
+          
+        Case #DELETE_OWN_BUTTON
+          ClearList(Delete_List())
+          Path=PathRequester("Select a folder to scan.",Home_Path)
+          If Path<>""
+            List_Files_Recursive(Path,LHA_Files(),"*.*")
+            ForEach LHA_Files()
+              If GetExtensionPart(LHA_Files())="lha" Or GetExtensionPart(LHA_Files())="lzx"
+                AddElement(Own_Files())
+                Own_Files()\own_file=GetFilePart(LHA_Files())
+                Own_Files()\own_folder=GetPathPart(LHA_Files())
+              EndIf
+            Next
+            FreeList(LHA_Files())
+            FreeList(LZX_Files())
+            ForEach Game_List() ; Create a map of all the filenames in the database
+              Archive_Map(Game_List()\File_Name)=""
+            Next
+            ForEach Own_Files() ; Compare the filenames in the own list and add any to the delete list
+              If Not FindMapElement(Archive_Map(),Own_Files()\own_file)
+                AddElement(Delete_List())
+                Delete_List()=Own_Files()\own_folder+Own_Files()\own_file
+              EndIf
+            Next
+            ClearGadgetItems(#DELETE_LIST)
+            If ListSize(Delete_List())>0
+              ForEach Delete_List()
+                AddGadgetItem(#DELETE_LIST,-1,Delete_List(),0,0)
+                AddGadgetItem(#DELETE_LIST,-1,"No longer needed!",0,1)
+                SetGadgetItemColor(#DELETE_LIST,-1,#PB_Gadget_FrontColor,#Red,1)
+              Next
+              DisableGadget(#DELETE_BACKUP_BUTTON,#False)
+              DisableGadget(#DELETE_DEL_BUTTON,#False) 
+              TreeExpandAllItems(#DELETE_LIST)
+            Else
+              MessageRequester("Information","Nothing to delete.",#PB_MessageRequester_Info|#PB_MessageRequester_Ok)
+            EndIf
+            SetWindowTitle(#DELETE_WINDOW,"Remove Un-Needed Files ("+Str(ListSize(Delete_List()))+" files)")
+          EndIf
+          
+      EndSelect
+      
+    ForEver
     
-  ForEver
-  
-  UseGadgetList(oldgadgetlist)
-  
-  CloseWindow(#DELETE_WINDOW)
+    UseGadgetList(oldgadgetlist)
+    
+    CloseWindow(#DELETE_WINDOW)
+    
+    update=#True
+    
+  EndIf
   
   FreeList(Own_Files())
   FreeList(Zero_Files())
@@ -2807,6 +2838,8 @@ Procedure Update_Files()
     Next
   Next
   
+  ProcedureReturn update
+  
 EndProcedure
 
 Procedure Scrape_Data()
@@ -2815,7 +2848,7 @@ Procedure Scrape_Data()
     Game_List()\File_Amiga=#True
     Game_List()\File_Ignore=#False
     If Game_List()\File_Type="Beta" : Game_List()\File_Type="Game" : Game_List()\File_BETA=#True :  Game_List()\File_Amiga=#False : EndIf  
-    If FindString(LCase(Game_List()\File_Name),"arcadia") : Game_List()\File_Arcadia=#True : Game_List()\File_Amiga=#False : EndIf
+    If FindString(LCase(Game_List()\File_Name),"arcadia.") : Game_List()\File_Arcadia=#True : Game_List()\File_Amiga=#False : EndIf
     If FindString(Game_List()\File_Name,"AGA") : Game_List()\File_AGA=#True : EndIf
     If FindString(Game_List()\File_Name,"_CD") And Not FindString(Game_List()\File_Name,"CD32") And Not FindString(Game_List()\File_Name,"CDTV")
       Game_List()\File_CDROM=#True
@@ -2956,13 +2989,13 @@ Procedure Help_Window()
   
   Protected oldgadgetlist.i, output$
   
-  OpenWindow(#HELP_WINDOW,0,0,500,600,"Help", #PB_Window_SystemMenu|#PB_Window_WindowCentered,WindowID(#MAIN_WINDOW))
+  OpenWindow(#HELP_WINDOW,0,0,550,600,"Help", #PB_Window_SystemMenu|#PB_Window_WindowCentered,WindowID(#MAIN_WINDOW))
   
   oldgadgetlist=UseGadgetList(WindowID(#HELP_WINDOW))
   
   Pause_Window(#HELP_WINDOW)
   
-  StringGadget(#HELP_EDITOR,0,0,500,600,"", #PB_String_ReadOnly|#ES_MULTILINE | #ES_AUTOVSCROLL|#WS_VSCROLL|#ESB_DISABLE_LEFT|#ESB_DISABLE_RIGHT)
+  StringGadget(#HELP_EDITOR,0,0,550,600,"", #PB_String_ReadOnly|#ES_MULTILINE | #ES_AUTOVSCROLL|#WS_VSCROLL|#ESB_DISABLE_LEFT|#ESB_DISABLE_RIGHT)
   
   SetGadgetColor(#HELP_EDITOR,#PB_Gadget_BackColor,#White)
   
@@ -2978,12 +3011,12 @@ Procedure Help_Window()
   output$+#CRLF$+#CRLF$
   output$+"Introduction"+#CRLF$
   output$+"============"+#CRLF$
-  output$+"WHDLoad Download Tool is a utility that will download Retroplay's WHDLoad collection from the Turran FTP server. "
+  output$+"WHDLoad Download Tool is a utility that will download Retroplay's WHDLoad collection from the Turran file server. "
   output$+"The tool includes advanced filtering to help you curate a collection to your needs and flexible setups to help you manage your files. "
-  output$+"Once you have set the filters, the tool will connect to the Turran FTP site and download the required files. "
+  output$+"Once you have set the filters, the tool will connect to the Turran file server and download the required files. "
   output$+"It also has the facility to scan your current archives and remove any redundant / un-needed files. "+#CRLF$
   output$+#CRLF$
-  output$+"Please note that this program is reliant on the Turran FTP server so if you get errors, please check the status of the Turran file server on the EAB forum before posting bugs. "+#CRLF$
+  output$+"Please note that this program is reliant on the Turran file server so if you get errors, please check the status of the Turran file server on the EAB forum before posting bugs. "+#CRLF$
   output$+#CRLF$+#CRLF$
   output$+"Main Window"+#CRLF$
   output$+"==========="+#CRLF$
@@ -3006,22 +3039,26 @@ Procedure Help_Window()
   output$+#CRLF$
   output$+"File List"+#CRLF$
   output$+"---------"+#CRLF$
-  output$+"The file list shows a list of the software available on the Turran FTP site. "
+  output$+"The file list shows a list of the software available on the Turran file server. "
   output$+"As you change the filters, the file list will adapt to your selection. "
   output$+"The entries in the list are selectable and the status bar at the bottom of the window will show any data available. "
   output$+"If the entry is available in the relevant download folder, the entry will be highlighted in green. "
   output$+"Any software highlighted in green will not be downloaded when you click the download button."+#CRLF$
   output$+#CRLF$
-  output$+"FTP Settings"+#CRLF$
-  output$+"------------"+#CRLF$
-  output$+"This section shows the current FTP settings. A couple of text boxes are blocked on purpose as they need to remain unchanged, though, all the FTP settings are stored in the prefs files and can be changed there. "
-  output$+"There are two entries that you can change in the UI. These are... "+#CRLF$
+  output$+"Ferver Settings"+#CRLF$
+  output$+"---------------"+#CRLF$
+  output$+"This section shows the current FTP settings. These are the settings that you can change... "+#CRLF$
   output$+#CRLF$
-  output$+"    User Name - This allows you to change the default FTP user name."+#CRLF$
-  output$+"    Password  - This allows you to change the default FTP password."+#CRLF$
+  output$+"    User Name  - This allows you to change the default FTP user name."+#CRLF$
+  output$+"    Password   - This allows you to change the default FTP password."+#CRLF$
+  output$+"    Server     - This allows you to change the default FTP server."+#CRLF$
+  output$+"    Port       - This allows you to change the default FTP port."+#CRLF$
+  output$+"    FTP Folder - This allows you to change the default FTP folder."+#CRLF$
+  output$+"    HTTP Path  - This allows you to change the default HTTP path."+#CRLF$
   output$+#CRLF$
-  output$+"You should only change these settings if you have an EAB FTP account. "
+  output$+"You should only change these settings if you have an Turran FTP account. "
   output$+"If you change them by mistake, the default user name is 'ftp' and the default password is anything you want (e.g.'amiga')."+#CRLF$
+  output$+"You can also reset the server settings by deleting the default.prefs file and restarting the program."+#CRLF$
   output$+#CRLF$
   output$+"Folder Settings"+#CRLF$
   output$+"---------------"+#CRLF$
@@ -3029,16 +3066,28 @@ Procedure Help_Window()
   output$+"By default this tools supports four types of archives (games, demos, beta and disk magazines). Beta files are internally classed as games so are stored in the games folder."+#CRLF$
   output$+#CRLF$
   output$+"The 'Set' button on the 'Parent' path will open a requester so you can choose the default download path. *Note* You cannot set this path to a root folder for safety reasons. "
-  output$+"The 'Games', 'Demos' and 'Mags' text boxes are for the names of the subdirectories that the categories will be saved to. "
+  output$+#CRLF$
+  output$+"The 'Games', 'Demos', 'Beta' and 'Mags' text boxes are for the names of the subdirectories that the categories will be saved to. "
   output$+"You do not need to enter a full path in these boxes as they are only used for the subfolder names. "+#CRLF$
   output$+#CRLF$
-  output$+"There are also three check boxes next to each archive type. These are part of the filter and allow you to set which type of file is downloaded. The main list will change as you tick/untick the boxes."+#CRLF$
+  output$+"There are also four check boxes next to each archive type. These are part of the filter and allow you to set which type of file is downloaded. The main list will change as you tick/untick the boxes."+#CRLF$
   output$+#CRLF$
-  output$+"If you select the 'Use Subfolders' check box, any files you download will be separated into the folder names specified in the 'Games', 'Demos' and 'Mags' boxes. "+#CRLF$
+  output$+"Next to where it says 'Sorting', there are two drop boxes. The first drop box sets how the files are sorted. It can be set three ways..."+#CRLF$
   output$+#CRLF$
-  output$+"To set a subfolder path, simply type the name of the folder into one of the boxes. You can only use these boxes if the 'Use Subfolders' check box is selected. "+#CRLF$
+  output$+"    No Sorting       - This will download the archives into the"+#CRLF$
+  output$+"                       paths set in the 'Games', 'Demos', 'Beta'"+#CRLF$
+  output$+"                       and 'Mags' path boxes but won't add any"+#CRLF$
+  output$+"                       extra subdirectories."+#CRLF$
+  output$+"    Sort by 0-Z      - This will download the archives into the"+#CRLF$
+  output$+"                       paths set in the 'Games', 'Demos', 'Beta'"+#CRLF$
+  output$+"                       and 'Mags' path boxes and will further split"+#CRLF$
+  output$+"                       them alphabetically."+#CRLF$
+  output$+"    Sort by Category - This will download the archives into the"+#CRLF$
+  output$+"                       paths set in the 'Games', 'Demos', 'Beta'"+#CRLF$
+  output$+"                       and 'Mags' path boxes and will further split"+#CRLF$
+  output$+"                       them by category."+#CRLF$
   output$+#CRLF$
-  output$+"As an addition, the 'Add 0-Z Subfolders' check box will separate the downloads into alphabetical subfolders in the category folders. "+#CRLF$
+  output$+"When you select 'Sort by Category', the second sorting drop box will become available. In this box you can set whether non-english archives are split into their own folders or not."+#CRLF$
   output$+#CRLF$
   output$+"Finally, pressing any of the 'Open' buttons will open the matching download folder (if it exists)."+#CRLF$
   output$+#CRLF$
@@ -3078,12 +3127,18 @@ Procedure Help_Window()
   output$+"                 will be downloaded and the old one deleted. "+#CRLF$
   output$+#CRLF$  
   output$+"  Download     - Downloads the files that are left in the main list. A"+#CRLF$
-  output$+"                 small window will open to show the download progress."+#CRLF$
-  output$+"                 A file called 'ftp.log' stores the FTP information"+#CRLF$
-  output$+"                 and is saved in the folder that this tool is stored"+#CRLF$
-  output$+"                 in. There is also a 'Cancel' button which aborts the"+#CRLF$
-  output$+"                 current download. (N.B. If you press cancel, it will"+#CRLF$
-  output$+"                 take a few seconds to stop the current download.)"+#CRLF$
+  output$+"                 preview window will open to show how the download folder"+#CRLF$
+  output$+"                 will look. If you tick the '255 files' button the list will"+#CRLF$
+  output$+"                 further split the folders so that the A500 Mini computer can"+#CRLF$
+  output$+"                 view them."+#CRLF$
+  output$+"                 When downloading, you can press the 'Escape' key to quit the"+#CRLF$
+  output$+"                 download process and return to the main window. Once the "+#CRLF$
+  output$+"                 current download is complete, your files will be automatically"+#CRLF$
+  output$+"                 checked and a window will show any unneeded ones. In this"+#CRLF$
+  output$+"                 window you can either back up or delete these files."+#CRLF$
+  output$+#CRLF$  
+  output$+"  FTP / HTTP   - Sets the connection type for all downloads. Use HTTP"+#CRLF$
+  output$+"                 if you have issues with the FTP connection."+#CRLF$
   output$+#CRLF$  
   output$+"Lists"+#CRLF$
   output$+"-----"+#CRLF$ 
@@ -3113,11 +3168,6 @@ Procedure Help_Window()
   output$+#CRLF$
   output$+"  Clear Data   - Clears all loaded data and resets the filter."+#CRLF$
   output$+#CRLF$
-  output$+"  Make Folder  - Creates a new folder of games from your downloads"+#CRLF$
-  output$+"                 using the filter settings. This is useful if you've"+#CRLF$
-  output$+"                 downloaded a set of archives and want to refine"+#CRLF$
-  output$+"                 your selection further."+#CRLF$
-  output$+#CRLF$
   output$+"Misc"+#CRLF$
   output$+"----"+#CRLF$ 
   output$+"  Save Prefs   - Saves the current FTP, folder and filter settings. A"+#CRLF$
@@ -3146,19 +3196,22 @@ Procedure Help_Window()
   output$+#CRLF$
   output$+"It is quite a simple process to create a set of WHDLoad files. This is what you need to do..."+#CRLF$
   output$+#CRLF$
-  output$+"  1. Press the 'Load Data' button to load the main database."+#CRLF$
-  output$+"  2. Set the download folder by pressing the 'Set' button next to the"+#CRLF$
+  output$+"  1. Decide between HTTP or FTP for downloading all files."+#CRLF$
+  output$+"  2. Press the 'Load Data' button to load the main database."+#CRLF$
+  output$+"  3. Set the download folder by pressing the 'Set' button next to the"+#CRLF$
   output$+"     'Parent' text box. If you don't set a new path, a folder called"+#CRLF$
   output$+"     'Download' will be created in the folder that this tool in in."+#CRLF$
-  output$+"  3. Use the filter options to remove any files that you don't require."+#CRLF$
-  output$+"  4. Use the 'Edit List' window to further refine the file list."+#CRLF$
-  output$+"  5. Press the 'Download' button to download the files from the FTP."+#CRLF$
-  output$+"  6. If you want to save your settings, press the 'Save Prefs' button"+#CRLF$
+  output$+"  4. Use the filter options to remove any files that you don't require."+#CRLF$
+  output$+"  5. Use the 'Edit List' window to further refine the file list."+#CRLF$
+  output$+"  6. Set how downloads are sorted into folders with the 'Sorting'"+#CRLF$
+  output$+"     drop down menus."+#CRLF$
+  output$+"  7. Press the 'Download' button to download the files from the Turran server."+#CRLF$
+  output$+"  8. If you want to save your settings, press the 'Save Prefs' button"+#CRLF$
   output$+"     and use your own filename. If you want use these settings by default"+#CRLF$
   output$+"     , overwrite the 'default.prefs' file. If you want to revert to the "+#CRLF$
   output$+"     original default settings, simply delete the 'default.prefs' file"+#CRLF$
   output$+"     and run the tool again, a new 'default.prefs' file will be created."+#CRLF$
-  output$+"  7. Saving the file list as a list is a quick way to store any edits"+#CRLF$
+  output$+"  9. Saving the file list as a list is a quick way to store any edits"+#CRLF$
   output$+"     you have made as well."+#CRLF$
   output$+#CRLF$
   output$+"**** Important Notes ****"+#CRLF$
@@ -3178,18 +3231,17 @@ Procedure Help_Window()
   output$+#CRLF$
   output$+"This process can be run in two ways..."+#CRLF$
   output$+#CRLF$  
-  output$+"Clean using filters"+#CRLF$
-  output$+"-------------------"+#CRLF$ 
+  output$+"Cleaning Your WHDLoad Set"+#CRLF$
+  output$+"-------------------------"+#CRLF$ 
   output$+#CRLF$
-  output$+"The default way it to use the path, filter and list settings to check the files. If you have a specific setup that you use all the time, this is the best method to use as it will keep your set up to date."+#CRLF$ 
+  output$+"This process will remove any unneeded archives from your WHDLoad set."+#CRLF$ 
   output$+#CRLF$
   output$+"  1. Press the 'Load Data' button to load the main database."+#CRLF$
   output$+"  2. Set the 'Parent' folder to the folder you have your WHDLoad files"+#CRLF$
   output$+"     stored in."+#CRLF$
-  output$+"  3. Set the filter options to your required settings."+#CRLF$
-  output$+"  4. Press the 'Clean Files' button."+#CRLF$
-  output$+"  5. IMPORTANT! DOUBLE CHECK THE LISTS FILES BEFORE CONTINUING!."+#CRLF$
-  output$+"  6. Choose 'Delete' to delete the files or 'Back Up' to back up the"+#CRLF$
+  output$+"  3. Press the 'Clean Files' button."+#CRLF$
+  output$+"  4. IMPORTANT! DOUBLE CHECK THE LISTS FILES BEFORE CONTINUING!."+#CRLF$
+  output$+"  5. Choose 'Delete' to delete the files or 'Back Up' to back up the"+#CRLF$
   output$+"     files. Pressing 'Cancel' aborts the process. Back ups are stored"+#CRLF$
   output$+"     in a folder called 'Backup' in the folder that this program is in."+#CRLF$
   output$+#CRLF$
@@ -3242,24 +3294,6 @@ Procedure Help_Window()
   output$+"  3. Press the 'Append List' button and select the extra list you want."+#CRLF$
   output$+#CRLF$
   output$+#CRLF$
-  output$+"Make Folder"+#CRLF$
-  output$+"==========="+#CRLF$ 
-  output$+#CRLF$
-  output$+"The 'Make Folder' button allows you to copy from your existing downloads using the current filter settings. An example would be if you wanted to create a set of archives that are only for ECS/OCS machines from a full set. All you would do is deselect AGA and CD32, press the 'Make Folder' button, "
-  output$+"select a new folder, decide whether to keep the same folder structure and press OK."+#CRLF$
-  output$+#CRLF$
-  output$+"Create a new folder"+#CRLF$
-  output$+"-------------------"+#CRLF$ 
-  output$+"  1. Press the 'Load Data' button to load the main database."+#CRLF$
-  output$+"  2. Load a prefs file or make the necessary filter selections. All "+#CRLF$
-  output$+"     listed archive should be green."+#CRLF$
-  output$+"  3. Press the 'Make Folder' button and select the folder you want to "+#CRLF$
-  output$+"     save the new archives To And press OK."+#CRLF$
-  output$+"  4. Select whether to keep the existing folder structure or copy all "+#CRLF$
-  output$+"     files To a single folder."+#CRLF$
-  output$+"  5. Wait for console window to close. You can press 'Escape' to"+#CRLF$
-  output$+"     cancel the copy process."+#CRLF$
-  output$+#CRLF$+#CRLF$
   output$+"Disclaimer"+#CRLF$
   output$+"=========="+#CRLF$
   output$+#CRLF$
@@ -3337,7 +3371,7 @@ Procedure Main_Window()
 
   TextGadget(#PB_Any,465,312,75,22,"Sorting")
   ComboBoxGadget(#WHD_SORT_COMBO,530,310,115,22)
-  AddGadgetItem(#WHD_SORT_COMBO,-1,"No Sort")
+  AddGadgetItem(#WHD_SORT_COMBO,-1,"No Sorting")
   AddGadgetItem(#WHD_SORT_COMBO,-1,"Sort By 0-Z")
   AddGadgetItem(#WHD_SORT_COMBO,-1,"Sort By Category")
   SetGadgetState(#WHD_SORT_COMBO,Sort_Type)
@@ -3345,31 +3379,9 @@ Procedure Main_Window()
   AddGadgetItem(#WHD_LANGUAGE_CHECK,-1,"Ignore Languages")
   AddGadgetItem(#WHD_LANGUAGE_CHECK,-1,"Split Languages")
   SetGadgetState(#WHD_LANGUAGE_CHECK,Split_Languages)
-  
-  If Sort_Type<>0
-    DisableGadget(#WHD_GAME_STRING,#False)
-    DisableGadget(#WHD_OPEN_GAME_BUTTON,#False)
-    DisableGadget(#WHD_DEMO_STRING,#False)
-    DisableGadget(#WHD_OPEN_DEMO_BUTTON,#False)
-    DisableGadget(#WHD_BETA_STRING,#False)
-    DisableGadget(#WHD_OPEN_BETA_BUTTON,#False)
-    DisableGadget(#WHD_MAGS_STRING,#False)
-    DisableGadget(#WHD_OPEN_MAGS_BUTTON,#False)
-    DisableGadget(#WHD_SORT_COMBO,#False)
-    DisableGadget(#WHD_LANGUAGE_CHECK,#False)
-  Else
-    DisableGadget(#WHD_GAME_STRING,#True)
-    DisableGadget(#WHD_OPEN_GAME_BUTTON,#True)
-    DisableGadget(#WHD_DEMO_STRING,#True)
-    DisableGadget(#WHD_OPEN_DEMO_BUTTON,#True)
-    DisableGadget(#WHD_BETA_STRING,#True)
-    DisableGadget(#WHD_OPEN_BETA_BUTTON,#True)
-    DisableGadget(#WHD_MAGS_STRING,#True)
-    DisableGadget(#WHD_OPEN_MAGS_BUTTON,#True)
-    DisableGadget(#WHD_SORT_COMBO,#True)
-    DisableGadget(#WHD_LANGUAGE_CHECK,#True)
-  EndIf
-  
+
+  DisableGadget(#WHD_LANGUAGE_CHECK,#True)
+
   FrameGadget(#PB_Any,455,340,320,240,"Filter")
   
   FrameGadget(#PB_Any,460,355,150,100,"System")
@@ -3413,28 +3425,27 @@ Procedure Main_Window()
   
   ; #### Button List
   
-  FrameGadget(#PB_Any,780,0,90,95,"FTP Actions")
+  FrameGadget(#PB_Any,780,0,90,120,"FTP Actions")
   
-  ButtonGadget(#SCAN_BUTTON,785,20,80,20,"Load Data")
-  ButtonGadget(#DOWNLOAD_BUTTON,785,45,80,20,"Download")
-  ComboBoxGadget(#DOWNLOAD_TYPE_COMBO,785,70,80,22)
-  AddGadgetItem(#DOWNLOAD_TYPE_COMBO,-1,"FTP")
-  AddGadgetItem(#DOWNLOAD_TYPE_COMBO,-1,"HTTP")
+  ButtonGadget(#SCAN_BUTTON,785,20,80,30,"Load Data")
+  ButtonGadget(#DOWNLOAD_BUTTON,785,55,80,30,"Download")
+  ComboBoxGadget(#DOWNLOAD_TYPE_COMBO,785,90,80,23)
+  AddGadgetItem(#DOWNLOAD_TYPE_COMBO,-1," FTP")
+  AddGadgetItem(#DOWNLOAD_TYPE_COMBO,-1," HTTP")
   SetGadgetState(#DOWNLOAD_TYPE_COMBO,Download_Type)
   
-  FrameGadget(#PB_Any,780,95,90,195,"Lists")
+  FrameGadget(#PB_Any,780,120,90,195,"Lists")
   
-  ButtonGadget(#LIST_EDIT_BUTTON,785,115,80,30,"Edit List")  
-  ButtonGadget(#LIST_LOAD_BUTTON,785,150,80,30,"Load List")
-  ButtonGadget(#LIST_SAVE_BUTTON,785,185,80,30,"Save List")
-  ButtonGadget(#LIST_APPEND_BUTTON,785,220,80,30,"Append List")
-  ButtonGadget(#CLEAR_EDITS_BUTTON,785,255,80,30,"Clear Edits")
+  ButtonGadget(#LIST_EDIT_BUTTON,785,140,80,30,"Edit List")  
+  ButtonGadget(#LIST_LOAD_BUTTON,785,175,80,30,"Load List")
+  ButtonGadget(#LIST_SAVE_BUTTON,785,210,80,30,"Save List")
+  ButtonGadget(#LIST_APPEND_BUTTON,785,245,80,30,"Append List")
+  ButtonGadget(#CLEAR_EDITS_BUTTON,785,280,80,30,"Clear Edits")
   
-  FrameGadget(#PB_Any,780,290,90,125,"Data")
+  FrameGadget(#PB_Any,780,320,90,90,"Data")
   
-  ButtonGadget(#CLEANUP_BUTTON,785,310,80,30,"Clean Files") 
-  ButtonGadget(#CLEAR_LIST_BUTTON,785,345,80,30,"Clear Data")
-  ButtonGadget(#MAKE_FOLDER_BUTTON,785,380,80,30,"Make Folder")
+  ButtonGadget(#CLEANUP_BUTTON,785,340,80,30,"Clean Files") 
+  ButtonGadget(#CLEAR_LIST_BUTTON,785,375,80,30,"Clear Data")
   
   FrameGadget(#PB_Any,780,415,90,165,"Misc")
   
@@ -3531,14 +3542,6 @@ Repeat
     Case #WHD_SORT_COMBO
       Sort_Type=GetGadgetState(#WHD_SORT_COMBO)
       If Sort_Type<>0
-        DisableGadget(#WHD_GAME_STRING,#False)
-        DisableGadget(#WHD_OPEN_GAME_BUTTON,#False)
-        DisableGadget(#WHD_DEMO_STRING,#False)
-        DisableGadget(#WHD_OPEN_DEMO_BUTTON,#False)
-        DisableGadget(#WHD_BETA_STRING,#False)
-        DisableGadget(#WHD_OPEN_BETA_BUTTON,#False)
-        DisableGadget(#WHD_MAGS_STRING,#False)
-        DisableGadget(#WHD_OPEN_MAGS_BUTTON,#False)
         If Sort_Type=2
           DisableGadget(#WHD_LANGUAGE_CHECK,#False)
         Else
@@ -3548,15 +3551,6 @@ Repeat
       If Sort_Type=0
         Split_Languages=0
         SetGadgetState(#WHD_LANGUAGE_CHECK,0)
-        DisableGadget(#WHD_GAME_STRING,#True)
-        DisableGadget(#WHD_OPEN_GAME_BUTTON,#True)
-        DisableGadget(#WHD_DEMO_STRING,#True)
-        DisableGadget(#WHD_OPEN_DEMO_BUTTON,#True)
-        DisableGadget(#WHD_BETA_STRING,#True)
-        DisableGadget(#WHD_OPEN_BETA_BUTTON,#True)
-        DisableGadget(#WHD_MAGS_STRING,#True)
-        DisableGadget(#WHD_OPEN_MAGS_BUTTON,#True)
-        DisableGadget(#WHD_LANGUAGE_CHECK,#True)
       EndIf
       
     Case #WHD_SORT_COMBO
@@ -3708,10 +3702,7 @@ Repeat
         Set_List_Gadgets(#True)
         Draw_List()
       EndIf
-      
-    Case #MAKE_FOLDER_BUTTON
-      Make_Folder()
-      
+            
     Case #HELP_BUTTON
       Help_Window()
       
@@ -3762,11 +3753,12 @@ Repeat
       Else
         Download_HTTP()
       EndIf
+      Update_Files()
       Update_File_List()
       Draw_List()
       
     Case #CLEANUP_BUTTON 
-      Update_Files()
+      If Not Update_Files() : MessageRequester("Clean Files","Nothing To Clean!",#PB_MessageRequester_Ok|#PB_MessageRequester_Info) : EndIf
       Update_File_List()
       Draw_List()
       
@@ -3818,32 +3810,11 @@ Repeat
         SetGadgetText(#WHD_MAGS_STRING,WHD_Mags_Folder)
         SetGadgetState(#WHD_SORT_COMBO,Sort_Type)
         
-        If Sort_Type<>0
-          DisableGadget(#WHD_GAME_STRING,#False)
-          DisableGadget(#WHD_OPEN_GAME_BUTTON,#False)
-          DisableGadget(#WHD_DEMO_STRING,#False)
-          DisableGadget(#WHD_OPEN_DEMO_BUTTON,#False)
-          DisableGadget(#WHD_BETA_STRING,#False)
-          DisableGadget(#WHD_OPEN_BETA_BUTTON,#False)
-          DisableGadget(#WHD_MAGS_STRING,#False)
-          DisableGadget(#WHD_OPEN_MAGS_BUTTON,#False)
-          If Sort_Type=2
-            DisableGadget(#WHD_LANGUAGE_CHECK,#False)
-          Else
-            DisableGadget(#WHD_LANGUAGE_CHECK,#True)
-          EndIf
-        EndIf
-        If Sort_Type=0
+        If Sort_Type=2
+          DisableGadget(#WHD_LANGUAGE_CHECK,#False)
+        Else
           Split_Languages=0
           SetGadgetState(#WHD_LANGUAGE_CHECK,0)
-          DisableGadget(#WHD_GAME_STRING,#True)
-          DisableGadget(#WHD_OPEN_GAME_BUTTON,#True)
-          DisableGadget(#WHD_DEMO_STRING,#True)
-          DisableGadget(#WHD_OPEN_DEMO_BUTTON,#True)
-          DisableGadget(#WHD_BETA_STRING,#True)
-          DisableGadget(#WHD_OPEN_BETA_BUTTON,#True)
-          DisableGadget(#WHD_MAGS_STRING,#True)
-          DisableGadget(#WHD_OPEN_MAGS_BUTTON,#True)
           DisableGadget(#WHD_LANGUAGE_CHECK,#True)
         EndIf
         
@@ -3996,15 +3967,16 @@ ForEver
 
 End
 ; IDE Options = PureBasic 6.00 LTS (Windows - x64)
-; CursorPosition = 3295
-; FirstLine = 567
-; Folding = AAAAAAAAAw
+; CursorPosition = 2850
+; FirstLine = 587
+; Folding = AAAEAAAAAk-
 ; Optimizer
+; EnableThread
 ; EnableXP
 ; DPIAware
 ; UseIcon = boing.ico
 ; Executable = E:\WHDLoadTool\WHDTool_x64.exe
-; Compiler = PureBasic 6.00 Beta 8 (Windows - x64)
+; Compiler = PureBasic 6.00 LTS (Windows - x64)
 ; Debugger = Standalone
 ; Warnings = Display
 ; IncludeVersionInfo
