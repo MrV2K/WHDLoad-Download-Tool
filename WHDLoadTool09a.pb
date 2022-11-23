@@ -83,7 +83,7 @@
 ;
 ; Moved FTP procedures To Windows API functions.
 ; Fixed FTP fallback related console And UI crashes.
-; Fixed non unicode characters in download name saving As empty files.
+; Fixed non unicode characters in download name saving as empty files.
 ; Fixed open beta folder button.
 ; Removed requirement For PB_FTPEx libraries
 ; Clean files now only lists lha & lzx files.
@@ -108,27 +108,32 @@
 ; VERSION INFO v0.9a 
 ;============================================
 ;
-; Fixed a bug in sub folder creation.
-; Added ability to download to a folder structure based on category.
+; Fixed a bug in subfolder creation.
+; Added ability to download to folder structures either by category or alphabetically.
 ; Changed 'Save Prefs' and 'Load Prefs' to be disabled until the database is loaded.
-; Updated ftp login to ftp2.grandis.nu.
+; Updated the default ftp login to ftp2.grandis.nu.
 ; Centered console on main window.
 ; Added HTTP based downloads.
-; HTTP & FTP downloading now selectable fron the main window. HTTP now the default but setting saved in prefs file.
-; Added HTTP path to main window and prefs. Editable in prefs file.
-; Removed 'Used Subfolders' gadget and replaced with selectable combo gadget for sorting downloads.
-; Added preview to download procedure.
-; Added 255 file limit to download folders for FAT32 devices.
-; All FTP and download gadgets are enabled.
-; FTP Procedure updated to 0-Z and category downloads.
+; HTTP & FTP downloading now selectable fron the main window. HTTP is now the default, but the setting is saved in the prefs files if the user wants to change it.
+; Added HTTP path to main window and prefs.
+; Removed 'Use Subfolders' gadget and replaced with selectable combo gadgets for sorting downloads.
+; Improved the download preview window procedure.
+; Added a selectable 255 file limit to the download folders for the A500 mini home computer.
+; All FTP and download gadgets are enabled by default.
+; The FTP procedure has been updated to support the 0-Z and category downloads.
 ; Removed 'Make Folder' until I can make a better implementation of it.
+; Fixed a small bug in scrape data procedure.
+; Updated help file to reflect this versions changes.
+; Improved the filter speed.
+; Clear data now keeps the server and filter settings.
+; Fixed a couple of bugs in the save/load prefs procedure. All gadgets now update properly.
+; The clean files process is a bit dumber in the sense that it just looks for the right filename and deletes any lha or lzx file that doesn't match. It does still look for zero kilobyte files.
+; Added a 'refresh list' keyboard shortcut (F5) to update the available files if the user deletes any files manually.
 ;
 ;============================================
 ; To Do List
 ;============================================
 ;
-; Add clean unneeded files to ftp download procedure.
-; Update all procedures to work with category downloads.
 ;
 ;============================================
 ;
@@ -195,7 +200,7 @@ Enumeration
   #SCAN_BUTTON
   #DOWNLOAD_BUTTON
   #DOWNLOAD_TYPE_COMBO
-  #CLEAR_LIST_BUTTON
+  #CLEAR_DATA_BUTTON
   #RESET_BUTTON
   #SAVE_PREFS_BUTTON
   #LOAD_PREFS_BUTTON
@@ -217,7 +222,7 @@ Enumeration
   #FTP_SERVER_STRING
   #FTP_FOLDER_STRING
   #FTP_PORT_STRING
-  #HTTP_PATH_STRING
+  #HTTP_SERVER_STRING
   
   #WHD_MAIN_STRING  
   #WHD_OPEN_PATH_BUTTON
@@ -232,7 +237,7 @@ Enumeration
   #WHD_OPEN_BETA_BUTTON
   #WHD_SORT_COMBO
   #WHD_CATEGORY_CHECK
-  #WHD_LANGUAGE_CHECK
+  #WHD_LANGUAGE_COMBO
   
   #GAME_OPTION
   #DEMO_OPTION
@@ -330,13 +335,14 @@ Structure Filter_Data
 EndStructure
 
 Structure Down_Data
-  Down_Subfolder.s
   Down_Name.s
   Down_Type.s
   Down_Folder.s
   Down_FTP_Folder.s
   Down_HTTP_Folder.s
-  Down_Download_Folder.s
+  Down_SubFolder_1.s
+  Down_SubFolder_2.s
+  Down_SubFolder_3.s
   Down_Path.s
   Down_0toZ.s
 EndStructure
@@ -396,7 +402,7 @@ Global Old_Pos.i
 Global Sort_Type.i=0
 Global Split_Languages.i=0
 Global A500Mini.b=#False
-Global Slash$ ; For cross platform path compatability
+Global Slash$ ; For cross platform path compatibility
 
 Global FTP_Folder.s
 Global FTP_Server.s
@@ -554,7 +560,7 @@ Macro Update_Title()
   Path="WHDLoad Download Tool v"+Version+" "
   If Prefs_Name<>"default.prefs" : Path+" ["+GetFilePart(Prefs_Name)+"] - " : EndIf
   Path+"(Showing "+Str(ListSize(Filtered_List()))+" of "+Str(ListSize(Game_List()))+")"
-  Path+" - ("+StrF(FCount,2)+" MB)"
+  Path+" - ("+StrF(FCount,2)+" MB) - (Press F5 to refresh list)"
   
   SetWindowTitle(#MAIN_WINDOW,Path)  
   
@@ -589,38 +595,15 @@ Macro Default_Settings()
   WHD_Mags_Folder="Magazines"
   HTTP_Server="http://ftp2.grandis.nu/turran/FTP/Retroplay%20WHDLoad%20Packs"
   
-  Filter(0)\F_Games=#True
-  Filter(0)\F_Demos=#True
-  Filter(0)\F_Beta=#True
-  Filter(0)\F_Mags=#True
-  Filter(0)\F_AGA=#True
-  Filter(0)\F_ECS=#True
-  Filter(0)\F_NTSC=#True
-  Filter(0)\F_PAL=#True
-  Filter(0)\F_Amiga=#True
-  Filter(0)\F_Arcadia=#True
-  Filter(0)\F_CD32=#True
-  Filter(0)\F_CDTV=#True
-  Filter(0)\F_CDROM=#True
-  Filter(0)\F_Files=#True
-  Filter(0)\F_Image=#True
-  Filter(0)\F_Chip=#True
-  Filter(0)\F_Fast=#True
-  
-  Filter(0)\F_Czech=#True
-  Filter(0)\F_Danish=#True
-  Filter(0)\F_Dutch=#True
-  Filter(0)\F_English=#True
-  Filter(0)\F_Finnish=#True
-  Filter(0)\F_French=#True
-  Filter(0)\F_German=#True
-  Filter(0)\F_Greek=#True
-  Filter(0)\F_Italian=#True
-  Filter(0)\F_Multi=#True
-  Filter(0)\F_Polish=#True
-  Filter(0)\F_Spanish=#True
-  Filter(0)\F_Swedish=#True
-  
+EndMacro
+
+Macro Update_Prefs_Gadgets()
+  SetGadgetText(#WHD_MAIN_STRING,WHD_Folder)
+  SetGadgetText(#WHD_GAME_STRING,WHD_Game_Folder)
+  SetGadgetText(#WHD_DEMO_STRING,WHD_Demo_Folder)
+  SetGadgetText(#WHD_BETA_STRING,WHD_Beta_Folder)
+  SetGadgetText(#WHD_MAGS_STRING,WHD_Mags_Folder)   
+  SetGadgetState(#DOWNLOAD_TYPE_COMBO,Download_Type)
 EndMacro
 
 Macro OpenFolder(folder_path)
@@ -690,7 +673,9 @@ Procedure Set_List_Gadgets(bool)
 EndProcedure
 
 Procedure Disable_Gadgets(bool.b)
-   
+  
+  Pause_Window(#MAIN_WINDOW)
+  
   DisableGadget(#AMIGA_OPTION,bool)
   DisableGadget(#CD32_OPTION,bool)
   DisableGadget(#CDTV_OPTION,bool)
@@ -724,7 +709,7 @@ Procedure Disable_Gadgets(bool.b)
   
   DisableGadget(#CLEANUP_BUTTON,bool)
   DisableGadget(#CLEAR_BUTTON,bool)
-  DisableGadget(#CLEAR_LIST_BUTTON,bool)
+  DisableGadget(#CLEAR_DATA_BUTTON,bool)
   DisableGadget(#RESET_BUTTON,bool)
   
   DisableGadget(#DOWNLOAD_BUTTON,bool)
@@ -733,8 +718,30 @@ Procedure Disable_Gadgets(bool.b)
   DisableGadget(#LIST_LOAD_BUTTON,bool)
   DisableGadget(#LIST_SAVE_BUTTON,bool)
   
-  DisableGadget(#LOAD_PREFS_BUTTON,bool)
+  ;DisableGadget(#LOAD_PREFS_BUTTON,bool)
   DisableGadget(#SAVE_PREFS_BUTTON,bool)
+  
+  DisableGadget(#WHD_MAIN_STRING,bool)
+  DisableGadget(#WHD_GAME_STRING,bool)
+  DisableGadget(#WHD_OPEN_GAME_BUTTON,bool)
+  DisableGadget(#WHD_BETA_STRING,bool)
+  DisableGadget(#WHD_OPEN_BETA_BUTTON,bool)
+  DisableGadget(#WHD_DEMO_STRING,bool)
+  DisableGadget(#WHD_OPEN_DEMO_BUTTON,bool)
+  DisableGadget(#WHD_MAGS_STRING,bool)
+  DisableGadget(#WHD_OPEN_MAGS_BUTTON,bool)
+  DisableGadget(#WHD_OPEN_PATH_BUTTON,bool)
+  DisableGadget(#WHD_SET_PATH_BUTTON,bool)
+  DisableGadget(#WHD_SORT_COMBO,bool)
+  If Sort_Type=2
+    DisableGadget(#WHD_LANGUAGE_COMBO,bool)
+  EndIf
+  DisableGadget(#GAME_OPTION,bool)
+  DisableGadget(#DEMO_OPTION,bool)
+  DisableGadget(#BETA_OPTION,bool)
+  DisableGadget(#MAGS_OPTION,bool)
+  
+  Resume_Window(#MAIN_WINDOW)
   
 EndProcedure
 
@@ -1115,6 +1122,7 @@ Procedure Save_Prefs(p_path.s)
   WritePreferenceString("WHD_Beta",WHD_Beta_Folder)
   WritePreferenceString("WHD_Mags",WHD_Mags_Folder)
   WritePreferenceInteger("WHD_Sort",Sort_Type)
+  WritePreferenceInteger("WHD_Language_Split",Split_Languages)
   
   PreferenceComment("")
   
@@ -1180,6 +1188,7 @@ Procedure Load_Prefs(p_path.s)
     WHD_Beta_Folder=ReadPreferenceString("WHD_Beta",WHD_Beta_Folder)
     WHD_Mags_Folder=ReadPreferenceString("WHD_Mags",WHD_Mags_Folder)
     Sort_Type=ReadPreferenceInteger("WHD_Sort",Sort_Type)
+    Split_Languages=ReadPreferenceInteger("WHD_Language_Split",Split_Languages)
     
     PreferenceGroup("Filter")
     Filter(0)\F_Games=ReadPreferenceInteger("Filter_Games",Filter(0)\F_Games)
@@ -1955,6 +1964,11 @@ EndProcedure
 
 Macro Add_Category(ftype,category)
   
+  If ftype="Game" : whd_out_folder=WHD_Game_Folder : EndIf
+  If ftype="Demo" : whd_out_folder=WHD_Demo_Folder : EndIf
+  If ftype="Beta" : whd_out_folder=WHD_Beta_Folder : EndIf
+  If ftype="Magazine" : whd_out_folder=WHD_Mags_Folder : EndIf
+  
   ClearList(Sort_List())
   
   Count=0
@@ -1991,7 +2005,13 @@ Macro Add_Category(ftype,category)
       ForEach Sort_List()
         AddGadgetItem(#DOWNLOAD_LIST,-1,Sort_List()\Sort_Name,0,2)
         SelectElement(Down_List(),Sort_List()\Sort_Index)
-        Down_List()\Down_Download_Folder=WHD_Folder+ftype+"\"+category+"\"
+        Down_List()\Down_SubFolder_1=whd_out_folder
+        If ftype="Magazine" And Sort_Type=2
+          Down_List()\Down_SubFolder_2=""
+        Else
+          Down_List()\Down_SubFolder_2=category
+        EndIf
+        Down_List()\Down_SubFolder_3=""
       Next    
     EndIf
    EndIf
@@ -2002,24 +2022,29 @@ Macro Add_Category(ftype,category)
       ForEach Sort_List()
         AddGadgetItem(#DOWNLOAD_LIST,-1,Sort_List()\Sort_Name,0,2)
         SelectElement(Down_List(),Sort_List()\Sort_Index)
-        Down_List()\Down_Download_Folder=WHD_Folder+ftype+"\"+category+"\"
+        Down_List()\Down_SubFolder_1=whd_out_folder
+        Down_List()\Down_SubFolder_2=category
+        Down_List()\Down_SubFolder_3=""
       Next    
     EndIf
     
     If ListSize(Sort_List())>255       
       count=0
-      c_count=1
-      AddGadgetItem(#DOWNLOAD_LIST,-1,category+"(0)",0,1)
+      c_count=0
+      down_folder=category+"("+Str(c_count)+")"
+      AddGadgetItem(#DOWNLOAD_LIST,-1,category+"("+Str(c_count)+")",0,1)
       ForEach Sort_List()
-        If count=255 Or ListIndex(Sort_List())=ListSize(Sort_List())
+        If count=255 Or ListIndex(Sort_List())=ListSize(Sort_List()) 
+          c_count+1 
           down_folder=category+"("+Str(c_count)+")"
           AddGadgetItem(#DOWNLOAD_LIST,-1,down_folder,0,1)
-          c_count+1 
         count=0
         EndIf
         AddGadgetItem(#DOWNLOAD_LIST,-1,Sort_List()\Sort_Name,0,2)
         SelectElement(Down_List(),Sort_List()\Sort_Index)
-        Down_List()\Down_Download_Folder=WHD_Folder+ftype+"\"+category+"\"+down_folder+"\"+Down_List()\Down_Name
+        Down_List()\Down_SubFolder_1=whd_out_folder
+        Down_List()\Down_SubFolder_2=down_folder
+        Down_List()\Down_SubFolder_3=""
         count+1
       Next
     EndIf
@@ -2027,17 +2052,24 @@ Macro Add_Category(ftype,category)
 
 EndMacro
 
-Macro Add_Unsorted(category,out_folder)
+Macro Add_Unsorted(ftype,category)
+  
+  If ftype="Game" : whd_out_folder=WHD_Game_Folder : EndIf
+  If ftype="Demo" : whd_out_folder=WHD_Demo_Folder : EndIf
+  If ftype="Beta" : whd_out_folder=WHD_Beta_Folder : EndIf
+  If ftype="Magazine" : whd_out_folder=WHD_Mags_Folder : EndIf
   
   ForEach Down_List()   
-    If Down_List()\Down_Type=category
+    If Down_List()\Down_Type=ftype
       AddElement(Sort_List())
       Sort_List()\Sort_Name=Down_List()\Down_Name
-      Down_List()\Down_Download_Folder=WHD_Folder+out_folder+"\"
+      Down_List()\Down_SubFolder_1=whd_out_folder
+      Down_List()\Down_SubFolder_2=""
+      Down_List()\Down_SubFolder_3=""
     EndIf
   Next
   If ListSize(Sort_List())>0
-    AddGadgetItem(#DOWNLOAD_LIST,-1,out_folder,0,0)
+    AddGadgetItem(#DOWNLOAD_LIST,-1,category,0,0)
     ForEach Sort_List()   
       AddGadgetItem(#DOWNLOAD_LIST,-1,Sort_List()\Sort_Name,0,1)
     Next
@@ -2046,18 +2078,25 @@ Macro Add_Unsorted(category,out_folder)
   
 EndMacro
 
-Macro Add_Unsorted_A500(category,out_folder)
+Macro Add_Unsorted_A500(ftype,category)
+  
+  If ftype="Game" : whd_out_folder=WHD_Game_Folder : EndIf
+  If ftype="Demo" : whd_out_folder=WHD_Demo_Folder : EndIf
+  If ftype="Beta" : whd_out_folder=WHD_Beta_Folder : EndIf
+  If ftype="Magazine" : whd_out_folder=WHD_Mags_Folder : EndIf
   
   If ListSize(Down_List())<=255
     ForEach Down_List()   
-      If Down_List()\Down_Type=category
+      If Down_List()\Down_Type=ftype
         AddElement(Sort_List())
         Sort_List()\Sort_Name=Down_List()\Down_Name
-        Down_List()\Down_Download_Folder=WHD_Folder+out_folder+"\"
+      Down_List()\Down_SubFolder_1=whd_out_folder
+      Down_List()\Down_SubFolder_2=""
+      Down_List()\Down_SubFolder_3=""
       EndIf
     Next
     If ListSize(Sort_List())>0
-      AddGadgetItem(#DOWNLOAD_LIST,-1,out_folder,0,0)
+      AddGadgetItem(#DOWNLOAD_LIST,-1,category,0,0)
       ForEach Sort_List()   
         AddGadgetItem(#DOWNLOAD_LIST,-1,Sort_List()\Sort_Name,0,1)
       Next
@@ -2069,7 +2108,7 @@ Macro Add_Unsorted_A500(category,out_folder)
     count=0
     found=#False
     ForEach Down_List()     
-      If Down_List()\Down_Type=category
+      If Down_List()\Down_Type=ftype
         AddElement(Cat_List())
         Cat_List()\Sort_Name=Down_List()\Down_Name
         Cat_List()\Sort_Index=ListIndex(Down_List())
@@ -2082,7 +2121,7 @@ Macro Add_Unsorted_A500(category,out_folder)
       Sort_List()\Sort_Name=Cat_List()\Sort_Name
       Sort_List()\Sort_Index=Cat_List()\Sort_Index
       If count=255 Or ListIndex(Cat_List())=ListSize(Cat_List())-1
-        If Not found : AddGadgetItem(#DOWNLOAD_LIST,-1,out_folder,0,0) : Found=#True : EndIf
+        If Not found : AddGadgetItem(#DOWNLOAD_LIST,-1,category,0,0) : Found=#True : EndIf
         If ListSize(Sort_List())>0
           FirstElement(Sort_List())
           first_letter=Left(Sort_List()\Sort_Name,2)
@@ -2093,7 +2132,9 @@ Macro Add_Unsorted_A500(category,out_folder)
           ForEach Sort_List()
             AddGadgetItem(#DOWNLOAD_LIST,-1,Sort_List()\Sort_Name,0,2)
             SelectElement(Down_List(),Sort_List()\Sort_Index)
-            Down_List()\Down_Download_Folder=WHD_Folder+out_folder+"\"+down_folder+"\"
+            Down_List()\Down_SubFolder_1=whd_out_folder
+            Down_List()\Down_SubFolder_2=down_folder
+            Down_List()\Down_SubFolder_3=""
           Next
           ClearList(Sort_List())
           count=0
@@ -2108,7 +2149,7 @@ EndMacro
 
 Procedure Draw_Preview()
   
-  Protected first_letter.s, last_letter.s, old_first_letter.s, append_number.s, c_count.i, down_folder.s, found.b
+  Protected first_letter.s, last_letter.s, old_first_letter.s, append_number.s, c_count.i, down_folder.s, found.b, whd_out_folder.s
   
   NewList Cat_List.Sort_Struct()
   NewList Sort_List.Sort_Struct()
@@ -2313,7 +2354,7 @@ Procedure Draw_Preview()
     found=#False
   EndIf
   
-  TreeExpandAllItems(#DOWNLOAD_LIST)
+  ;TreeExpandAllItems(#DOWNLOAD_LIST)
   
   FreeList(Sort_List())
   FreeList(Cat_List())
@@ -2416,25 +2457,21 @@ Procedure Make_Download_List()
           If Game_List()\File_NTSC And Game_List()\File_Language="English" : Down_List()\Down_Folder="NTSC" : EndIf
           If Game_List()\File_Language<>"English" : Down_List()\Down_Folder=Game_List()\File_Language : EndIf
         EndIf
-        Down_List()\Down_Subfolder=WHD_Game_Folder+Chr(92)
         Down_List()\Down_FTP_Folder=FTP_Game_Folder
       EndIf 
       If Game_List()\File_Type="Game" And Game_List()\File_BETA=#True
         Down_List()\Down_Type="Beta"
         If Game_List()\File_AGA : Down_List()\Down_Folder="AGA" : EndIf
         If Game_List()\File_AGA=#False : Down_List()\Down_Folder="ECS-OCS" : EndIf
-        Down_List()\Down_Subfolder=WHD_Beta_Folder+Chr(92)
         Down_List()\Down_FTP_Folder=FTP_Beta_Folder
       EndIf 
       If Game_List()\File_Type="Demo" 
         If Game_List()\File_AGA : Down_List()\Down_Folder="AGA" : EndIf
         If Game_List()\File_AGA=#False : Down_List()\Down_Folder="ECS-OCS" : EndIf
-        Down_List()\Down_Subfolder=WHD_Demo_Folder+Chr(92)
         Down_List()\Down_FTP_Folder=FTP_Demo_Folder
       EndIf          
       If Game_List()\File_Type="Magazine" 
         Down_List()\Down_Folder="Magazine"
-        Down_List()\Down_Subfolder=WHD_Mags_Folder+Chr(92)
         Down_List()\Down_FTP_Folder=FTP_Mags_Folder
       EndIf 
       Down_List()\Down_HTTP_Folder=HTTP_Server+"/"+Down_List()\Down_FTP_Folder+"/"+Down_List()\Down_0toZ+"/"+Down_List()\Down_Name
@@ -2445,7 +2482,7 @@ EndProcedure
 
 Procedure Download_HTTP()
   
-  Protected Keypressed$
+  Protected Keypressed$, Down_Path.s
   
   ClearList(Down_List())
   
@@ -2464,20 +2501,20 @@ Procedure Download_HTTP()
       PrintN("")
       
       ForEach Down_List() 
-               
-        If CountString(Down_List()\Down_Download_Folder,"\")=8
-          If FileSize(WHD_Folder)<>-2 : CreateDirectory(WHD_Folder) : EndIf
-          If FileSize(WHD_Folder+StringField(Down_List()\Down_Download_Folder,8,"\"))<>-2 : CreateDirectory(WHD_Folder+StringField(Down_List()\Down_Download_Folder,8,"\")) : EndIf
-        EndIf  
         
-        If CountString(Down_List()\Down_Download_Folder,"\")=9 
-          If FileSize(WHD_Folder)<>-2 : CreateDirectory(WHD_Folder) : EndIf
-          If FileSize(WHD_Folder+StringField(Down_List()\Down_Download_Folder,8,"\"))<>-2 : CreateDirectory(WHD_Folder+StringField(Down_List()\Down_Download_Folder,8,"\")) : EndIf
-          If FileSize(WHD_Folder+StringField(Down_List()\Down_Download_Folder,9,"\"))<>-2 : CreateDirectory(WHD_Folder+StringField(Down_List()\Down_Download_Folder,8,"\")+"\"+StringField(Down_List()\Down_Download_Folder,9,"\")) : EndIf
+        If FileSize(WHD_Folder)<>-2 : CreateDirectory(WHD_Folder) : EndIf
+        If FileSize(WHD_Folder+Down_List()\Down_SubFolder_1)<>-2 : CreateDirectory(WHD_Folder+Down_List()\Down_SubFolder_1) : EndIf
+        Down_Path=WHD_Folder+Down_List()\Down_SubFolder_1+Chr(92)
+        
+        If Down_List()\Down_SubFolder_2>""
+          If FileSize(WHD_Folder+Down_List()\Down_SubFolder_1+Chr(92)+Down_List()\Down_SubFolder_2)<>-2 : CreateDirectory(WHD_Folder+Down_List()\Down_SubFolder_1+Chr(92)+Down_List()\Down_SubFolder_2) : EndIf
+          Down_Path=WHD_Folder+Down_List()\Down_SubFolder_1+Chr(92)+Down_List()\Down_SubFolder_2+Chr(92)
         EndIf
         
-        If ReceiveHTTPFile(Down_List()\Down_HTTP_Folder,Down_List()\Down_Download_Folder+Down_List()\Down_Name)  
-          PrintN("Downloaded ("+Str(ListIndex(Down_List()))+" of "+Str(ListSize(Down_List()))+") - "+Down_List()\Down_Name+" ("+Str(FileSize(Down_List()\Down_Download_Folder+Down_List()\Down_Name))+" bytes)")  
+        Down_Path+Down_List()\Down_Name
+        
+        If ReceiveHTTPFile(Down_List()\Down_HTTP_Folder,Down_Path)  
+          PrintN("Downloaded (" + Str(ListIndex(Down_List())) + " of " + Str(ListSize(Down_List())) + ") - " + Down_List()\Down_Name + " (" + Str(FileSize(Down_Path)) + " bytes)")  
         Else
           PrintNCol("*** Error ***",4,0)
         EndIf 
@@ -2497,7 +2534,8 @@ Procedure Download_HTTP()
       PrintNCol("Connection Closed.",14,0)
       PrintN("")
       PrintNCol("Please donate to the Turran FTP. The link is on the 'About' window.",2,0)
-      Delay(3000)
+      Delay(3000)   
+
       CloseConsole()
       
     EndIf  
@@ -2518,7 +2556,7 @@ Procedure Download_FTP()
   Protected ftp_log.s=""
   Protected log_path.s=Home_Path+"ftp.log"
   Protected conHandle.l, hInternet.l, hConnect.l
-  Protected cancel.b
+  Protected cancel.b, Down_Path.s
   Protected path$=""
   Protected FileName$
   Protected Keypressed$
@@ -2569,25 +2607,25 @@ Procedure Download_FTP()
           FTPSetDir(hConnect,Down_List()\Down_0toZ) ; Change to subfolder
           Delay(50)
                    
-          If CountString(Down_List()\Down_Download_Folder,"\")=8
-            If FileSize(WHD_Folder)<>-2 : CreateDirectory(WHD_Folder) : EndIf
-            If FileSize(WHD_Folder+StringField(Down_List()\Down_Download_Folder,8,"\"))<>-2 : CreateDirectory(WHD_Folder+StringField(Down_List()\Down_Download_Folder,8,"\")) : EndIf
-          EndIf  
+        If FileSize(WHD_Folder)<>-2 : CreateDirectory(WHD_Folder) : EndIf
+        If FileSize(WHD_Folder+Down_List()\Down_SubFolder_1)<>-2 : CreateDirectory(WHD_Folder+Down_List()\Down_SubFolder_1) : EndIf
+        Down_Path=WHD_Folder+Down_List()\Down_SubFolder_1+Chr(92)
+        
+        If Down_List()\Down_SubFolder_2>""
+          If FileSize(WHD_Folder+Down_List()\Down_SubFolder_1+Chr(92)+Down_List()\Down_SubFolder_2)<>-2 : CreateDirectory(WHD_Folder+Down_List()\Down_SubFolder_1+Chr(92)+Down_List()\Down_SubFolder_2) : EndIf
+          Down_Path=WHD_Folder+Down_List()\Down_SubFolder_1+Chr(92)+Down_List()\Down_SubFolder_2+Chr(92)
+        EndIf
+        
+        Down_Path+Down_List()\Down_Name
           
-          If CountString(Down_List()\Down_Download_Folder,"\")=9 
-            If FileSize(WHD_Folder)<>-2 : CreateDirectory(WHD_Folder) : EndIf
-            If FileSize(WHD_Folder+StringField(Down_List()\Down_Download_Folder,8,"\"))<>-2 : CreateDirectory(WHD_Folder+StringField(Down_List()\Down_Download_Folder,8,"\")) : EndIf
-            If FileSize(WHD_Folder+StringField(Down_List()\Down_Download_Folder,9,"\"))<>-2 : CreateDirectory(WHD_Folder+StringField(Down_List()\Down_Download_Folder,8,"\")+"\"+StringField(Down_List()\Down_Download_Folder,9,"\")) : EndIf
-          EndIf   
-          
-          If FTPDownload(hConnect,Down_List()\Down_Name,Down_List()\Down_Download_Folder+Down_List()\Down_Name)  
-            If FileSize(Down_List()\Down_Download_Folder+Down_List()\Down_Name)>0
-              PrintN("Downloading ("+Str(ListIndex(Down_List()))+" of "+Str(ListSize(Down_List()))+") - "+Down_List()\Down_Name+" ("+Str(FileSize(Down_List()\Down_Download_Folder+Down_List()\Down_Name))+" bytes)")
-              ftp_log+"Downloaded - " + Down_List()\Down_Name+" ("+Str(FileSize(Down_List()\Down_Download_Folder+Down_List()\Down_Name))+" bytes)"+#CRLF$    
+          If FTPDownload(hConnect,Down_List()\Down_Name,Down_Path)  
+            If FileSize(Down_Path)>0
+              PrintN("Downloading ("+Str(ListIndex(Down_List()))+" of "+Str(ListSize(Down_List()))+") - "+Down_List()\Down_Name+" ("+Str(FileSize(Down_Path))+" bytes)")
+              ftp_log+"Downloaded - " + Down_List()\Down_Name+" ("+Str(FileSize(Down_Path))+" bytes)"+#CRLF$    
             Else
               ftp_log+"No data received for file "+Down_List()\Down_Name+#CRLF$
               PrintNCol("No data received for file " + Down_List()\Down_Name,4,0)
-              DeleteFile(Down_List()\Down_Download_Folder+Down_List()\Down_Name)
+              DeleteFile(Down_Path)
             EndIf
           Else
             ftp_log+"Error downloading "+Down_List()\Down_Name+#CRLF$
@@ -2670,7 +2708,8 @@ Procedure Update_Files()
   
   ClearList(Delete_List())
   
-  ForEach Game_List()
+  ForEach Filtered_List()
+    SelectElement(Game_List(),Filtered_List())
     Archive_Map(Game_List()\File_Name)=Game_List()\File_Name
   Next
   
@@ -2678,12 +2717,16 @@ Procedure Update_Files()
   
   ForEach File_List()
     If Not FindMapElement(Archive_Map(),GetFilePart(File_List()))
-      AddElement(Delete_List())
-      Delete_List()=File_List()
+      If GetExtensionPart(File_List())="lha" Or GetExtensionPart(File_List())="lzx"
+        AddElement(Delete_List())
+        Delete_List()=File_List()
+      EndIf
     EndIf
     If FileSize(File_List())=0
-      AddElement(Zero_Files())
-      Zero_Files()=File_List()
+      If GetExtensionPart(File_List())="lha" Or GetExtensionPart(File_List())="lzx"
+        AddElement(Zero_Files())
+        Zero_Files()=File_List()
+      EndIf
     EndIf
   Next
   
@@ -3045,34 +3088,47 @@ Procedure Help_Window()
   output$+"If the entry is available in the relevant download folder, the entry will be highlighted in green. "
   output$+"Any software highlighted in green will not be downloaded when you click the download button."+#CRLF$
   output$+#CRLF$
-  output$+"Ferver Settings"+#CRLF$
+  output$+"If you delete any files in the download folder while the program is running, press 'F5' and the program will recheck the available files and refresh the game list to reflect any changes."+#CRLF$
+  output$+#CRLF$
+  output$+"Server Settings"+#CRLF$
   output$+"---------------"+#CRLF$
-  output$+"This section shows the current FTP settings. These are the settings that you can change... "+#CRLF$
+  output$+"This section shows the current server settings. All of the settings can be changed but bet careful when doing so as you can break the download process. Only change these settings if you know what you're doing!"+#CRLF$
   output$+#CRLF$
-  output$+"    User Name  - This allows you to change the default FTP user name."+#CRLF$
-  output$+"    Password   - This allows you to change the default FTP password."+#CRLF$
-  output$+"    Server     - This allows you to change the default FTP server."+#CRLF$
-  output$+"    Port       - This allows you to change the default FTP port."+#CRLF$
-  output$+"    FTP Folder - This allows you to change the default FTP folder."+#CRLF$
-  output$+"    HTTP Path  - This allows you to change the default HTTP path."+#CRLF$
+  output$+"    User Name  - Sets the FTP user name."+#CRLF$
+  output$+"    Password   - Sets the FTP password."+#CRLF$
+  output$+"    Server     - Sets the FTP server."+#CRLF$
+  output$+"    Port       - Sets the FTP port."+#CRLF$
+  output$+"    FTP Folder - Sets the FTP folder."+#CRLF$
+  output$+"    HTTP Path  - Sets the HTTP path."+#CRLF$
   output$+#CRLF$
-  output$+"You should only change these settings if you have an Turran FTP account. "
+  output$+"You should only need to change these settings if you have an Turran FTP account. "
   output$+"If you change them by mistake, the default user name is 'ftp' and the default password is anything you want (e.g.'amiga')."+#CRLF$
-  output$+"You can also reset the server settings by deleting the default.prefs file and restarting the program."+#CRLF$
+  output$+#CRLF$
+  output$+"You can also reset all the server settings by deleting the default.prefs file and restarting the program."+#CRLF$
   output$+#CRLF$
   output$+"Folder Settings"+#CRLF$
   output$+"---------------"+#CRLF$
   output$+"This section lets you set the paths that the archives are downloaded to. "
-  output$+"By default this tools supports four types of archives (games, demos, beta and disk magazines). Beta files are internally classed as games so are stored in the games folder."+#CRLF$
+  output$+"This tools supports four types of archives (games, demos, beta and disk magazines)."+#CRLF$
   output$+#CRLF$
-  output$+"The 'Set' button on the 'Parent' path will open a requester so you can choose the default download path. *Note* You cannot set this path to a root folder for safety reasons. "
+  output$+"The 'Set' button on the 'Parent' path will open a requester so you can choose the default download path. *Note* You cannot set this path to a root folder for safety reasons. "+#CRLF$
   output$+#CRLF$
   output$+"The 'Games', 'Demos', 'Beta' and 'Mags' text boxes are for the names of the subdirectories that the categories will be saved to. "
   output$+"You do not need to enter a full path in these boxes as they are only used for the subfolder names. "+#CRLF$
   output$+#CRLF$
   output$+"There are also four check boxes next to each archive type. These are part of the filter and allow you to set which type of file is downloaded. The main list will change as you tick/untick the boxes."+#CRLF$
+  output$+#CRLF$ 
+  output$+"Pressing any of the 'Open' buttons will open the matching download folder (if it exists)."+#CRLF$
   output$+#CRLF$
-  output$+"Next to where it says 'Sorting', there are two drop boxes. The first drop box sets how the files are sorted. It can be set three ways..."+#CRLF$
+  output$+"    Configurable Paths"+#CRLF$
+  output$+"    ------------------"+#CRLF$
+  output$+"    Parent - This is the main folder that the subfolders will be created in."+#CRLF$
+  output$+"    Games  - This is the subfolder that game files are downloaded to."+#CRLF$
+  output$+"    Demos  - This is the subfolder that demo files are downloaded to."+#CRLF$
+  output$+"    Beta   - This is the subfolder that beta files are downloaded to."+#CRLF$
+  output$+"    Mags   - This is the subfolder that magazine files are downloaded to."+#CRLF$
+  output$+#CRLF$
+  output$+"Finally, next to where it says 'Sorting', there are two drop boxes. The first drop box sets how the files are sorted. It can be set three ways..."+#CRLF$
   output$+#CRLF$
   output$+"    No Sorting       - This will download the archives into the"+#CRLF$
   output$+"                       paths set in the 'Games', 'Demos', 'Beta'"+#CRLF$
@@ -3089,27 +3145,19 @@ Procedure Help_Window()
   output$+#CRLF$
   output$+"When you select 'Sort by Category', the second sorting drop box will become available. In this box you can set whether non-english archives are split into their own folders or not."+#CRLF$
   output$+#CRLF$
-  output$+"Finally, pressing any of the 'Open' buttons will open the matching download folder (if it exists)."+#CRLF$
-  output$+#CRLF$
-  output$+"    Configurable Paths"+#CRLF$
-  output$+"    ------------------"+#CRLF$
-  output$+"    Parent - This is the main folder that the two subfolders will be"+#CRLF$
-  output$+"             created in"+#CRLF$
-  output$+"    Games  - This is the subfolder that games are downloaded to."+#CRLF$
-  output$+"    Demos  - This is the subfolder that demos are downloaded to."+#CRLF$
-  output$+"    Mags   - This is the subfolder that magazines are downloaded to."+#CRLF$
-  output$+#CRLF$
-  output$+"All path information is saved in preference files. "+#CRLF$
+  output$+"All path information and sorting settings are saved in the preference files. "+#CRLF$
   output$+#CRLF$
   output$+"Filters"+#CRLF$
   output$+"-------"+#CRLF$
-  output$+"This section is where you can filter down the main list. "+#CRLF$
+  output$+"This section is where you can filter down the main list."+#CRLF$
   output$+#CRLF$
-  output$+"The 'System' section lets you filter the list by system type. Beta files are also included in this section. "+#CRLF$
+  output$+"The 'System' section lets you filter the list by system type."+#CRLF$
   output$+#CRLF$
-  output$+"The 'Extras' section filters out specific categories of file. This can help reduce the size of the main list and get rid of unneeded file types. "+#CRLF$
+  output$+"The 'Extras' section filters out specific categories of file. This can help reduce the size of the main list and get rid of unneeded file types."+#CRLF$
   output$+#CRLF$
-  output$+"The 'Language' section lets you filter out files that are in unneeded languages. The 'Clear/All' button will toggle all the languages on or off. "+#CRLF$
+  output$+"The 'Language' section lets you filter out files that are in unneeded languages."+#CRLF$
+  output$+#CRLF$
+  output$+"The 'Clear/All' button will toggle all the languages on Or off."+#CRLF$
   output$+#CRLF$
   output$+"There are also two buttons 'Clear Filter' and 'Reset Filter'. 'Clear Filter' will set all the filters to off, while 'Reset Filter' will set all the filters to on."+#CRLF$
   output$+#CRLF$
@@ -3123,7 +3171,7 @@ Procedure Help_Window()
   output$+"-----------"+#CRLF$ 
   output$+"  Load Data    - Loads the WHDLoad dat files from the 'Dats' folder"+#CRLF$ 
   output$+"                 and creates a list of available files. If there "+#CRLF$
-  output$+"                 is a newer version on the Turran FTP, the new one"+#CRLF$
+  output$+"                 is a newer version on the Turran server, the new one"+#CRLF$
   output$+"                 will be downloaded and the old one deleted. "+#CRLF$
   output$+#CRLF$  
   output$+"  Download     - Downloads the files that are left in the main list. A"+#CRLF$
@@ -3137,8 +3185,8 @@ Procedure Help_Window()
   output$+"                 checked and a window will show any unneeded ones. In this"+#CRLF$
   output$+"                 window you can either back up or delete these files."+#CRLF$
   output$+#CRLF$  
-  output$+"  FTP / HTTP   - Sets the connection type for all downloads. Use HTTP"+#CRLF$
-  output$+"                 if you have issues with the FTP connection."+#CRLF$
+  output$+"  FTP / HTTP   - Sets the connection type for all downloads. Use FTP"+#CRLF$
+  output$+"                 if you have issues with the HTTP connection."+#CRLF$
   output$+#CRLF$  
   output$+"Lists"+#CRLF$
   output$+"-----"+#CRLF$ 
@@ -3166,7 +3214,7 @@ Procedure Help_Window()
   output$+"                 your collection. There is a section below that goes"+#CRLF$
   output$+"                 into more detail."+#CRLF$
   output$+#CRLF$
-  output$+"  Clear Data   - Clears all loaded data and resets the filter."+#CRLF$
+  output$+"  Clear Data   - Clears all loaded data. Filters and servers settings will remain."+#CRLF$
   output$+#CRLF$
   output$+"Misc"+#CRLF$
   output$+"----"+#CRLF$ 
@@ -3181,30 +3229,29 @@ Procedure Help_Window()
   output$+"  Help         - You are already here!."+#CRLF$
   output$+#CRLF$
   output$+"  About        - Shows some information about this tool and has a link"+#CRLF$
-  output$+"                 so you can donate to support the Turran FTP."+#CRLF$
+  output$+"                 so you can donate to support the Turran server."+#CRLF$
   output$+#CRLF$
-  output$+"  Donate       - Opens the PayPal donation page for the Turran FTP."+#CRLF$
+  output$+"  Donate       - Opens the PayPal donation page for the Turran server."+#CRLF$
   output$+#CRLF$+#CRLF$
-  output$+"                ╔══════════════════════════════════════════╗"+#CRLF$
-  output$+"                ║                                          ║"+#CRLF$
-  output$+"                ║                Instructions              ║"+#CRLF$
-  output$+"                ║                                          ║"+#CRLF$
-  output$+"                ╚══════════════════════════════════════════╝"+#CRLF$
+  output$+"                    ╔══════════════════════════════════════════╗"+#CRLF$
+  output$+"                    ║                                          ║"+#CRLF$
+  output$+"                    ║                Instructions              ║"+#CRLF$
+  output$+"                    ║                                          ║"+#CRLF$
+  output$+"                    ╚══════════════════════════════════════════╝"+#CRLF$
   output$+#CRLF$+#CRLF$
   output$+"Create a WHDLoad set"+#CRLF$
   output$+"===================="+#CRLF$
   output$+#CRLF$
   output$+"It is quite a simple process to create a set of WHDLoad files. This is what you need to do..."+#CRLF$
   output$+#CRLF$
-  output$+"  1. Decide between HTTP or FTP for downloading all files."+#CRLF$
+  output$+"  1. Decide between HTTP or FTP for downloading all the files."+#CRLF$
   output$+"  2. Press the 'Load Data' button to load the main database."+#CRLF$
   output$+"  3. Set the download folder by pressing the 'Set' button next to the"+#CRLF$
   output$+"     'Parent' text box. If you don't set a new path, a folder called"+#CRLF$
-  output$+"     'Download' will be created in the folder that this tool in in."+#CRLF$
-  output$+"  4. Use the filter options to remove any files that you don't require."+#CRLF$
+  output$+"     'Download' will be created in the folder that this program is located in."+#CRLF$
+  output$+"  4. Use the filter options to remove any file types that you don't require."+#CRLF$
   output$+"  5. Use the 'Edit List' window to further refine the file list."+#CRLF$
-  output$+"  6. Set how downloads are sorted into folders with the 'Sorting'"+#CRLF$
-  output$+"     drop down menus."+#CRLF$
+  output$+"  6. Set how the downloads are sorted with the 'Sorting' drop down menus."+#CRLF$
   output$+"  7. Press the 'Download' button to download the files from the Turran server."+#CRLF$
   output$+"  8. If you want to save your settings, press the 'Save Prefs' button"+#CRLF$
   output$+"     and use your own filename. If you want use these settings by default"+#CRLF$
@@ -3233,7 +3280,6 @@ Procedure Help_Window()
   output$+#CRLF$  
   output$+"Cleaning Your WHDLoad Set"+#CRLF$
   output$+"-------------------------"+#CRLF$ 
-  output$+#CRLF$
   output$+"This process will remove any unneeded archives from your WHDLoad set."+#CRLF$ 
   output$+#CRLF$
   output$+"  1. Press the 'Load Data' button to load the main database."+#CRLF$
@@ -3243,11 +3289,10 @@ Procedure Help_Window()
   output$+"  4. IMPORTANT! DOUBLE CHECK THE LISTS FILES BEFORE CONTINUING!."+#CRLF$
   output$+"  5. Choose 'Delete' to delete the files or 'Back Up' to back up the"+#CRLF$
   output$+"     files. Pressing 'Cancel' aborts the process. Back ups are stored"+#CRLF$
-  output$+"     in a folder called 'Backup' in the folder that this program is in."+#CRLF$
+  output$+"     in a folder called 'Backup' in the folder that this program is located in."+#CRLF$
   output$+#CRLF$
   output$+"Clean an existing set"+#CRLF$
   output$+"---------------------"+#CRLF$ 
-  output$+#CRLF$
   output$+"The alternate way it to scan a folder of WHDLoad archives and use the database to remove unneeded files. This can be good if you have an existing set of WHDLoad files and want to get rid of old files."+#CRLF$
   output$+#CRLF$
   output$+"  1. Press the 'Load Data' button to load the main database."+#CRLF$
@@ -3259,14 +3304,14 @@ Procedure Help_Window()
   output$+"  4. IMPORTANT! DOUBLE CHECK THE LISTS FILES BEFORE CONTINUING!."+#CRLF$
   output$+"  5. Choose 'Delete' to delete the files or 'Back Up' to back up the"+#CRLF$
   output$+"     files. Pressing 'Cancel' aborts the process. Back ups are stored"+#CRLF$
-  output$+"     in a folder called 'Backup' in the folder that this program is in."+#CRLF$
+  output$+"     in a folder called 'Backup' in the folder that this program is located in."+#CRLF$
   output$+#CRLF$
   output$+"**** Important Notes ****"+#CRLF$
   output$+"-------------------------"+#CRLF$
   output$+"1. You cannot select a root folder on your harddrives."+#CRLF$
-  output$+"2. Please note that if you change the subfolder settings after"+#CRLF$
+  output$+"2. Please note that if you change the filter settings after"+#CRLF$
   output$+"   downloading a set and then run the 'Clean Files', it will scan based "+#CRLF$
-  output$+"   on the new settings and delete any files in the wrong location."+#CRLF$
+  output$+"   on the new filter settings and delete any file types you have removed."+#CRLF$
   output$+#CRLF$+#CRLF$
   output$+"Lists"+#CRLF$
   output$+"====="+#CRLF$
@@ -3340,7 +3385,7 @@ Procedure Main_Window()
   TextGadget(#PB_Any,465,100,60,22,"FTP Folder")
   StringGadget(#FTP_FOLDER_STRING,535,98,235,22,ftp_Folder)
   TextGadget(#PB_Any,465,127,60,22,"HTTP Path")
-  StringGadget(#HTTP_PATH_STRING,535,125,235,22,HTTP_Server)
+  StringGadget(#HTTP_SERVER_STRING,535,125,235,22,HTTP_Server)
   
   FrameGadget(#PB_Any,455,153,320,187,"Folder Settings")
   
@@ -3372,15 +3417,15 @@ Procedure Main_Window()
   TextGadget(#PB_Any,465,312,75,22,"Sorting")
   ComboBoxGadget(#WHD_SORT_COMBO,530,310,115,22)
   AddGadgetItem(#WHD_SORT_COMBO,-1,"No Sorting")
-  AddGadgetItem(#WHD_SORT_COMBO,-1,"Sort By 0-Z")
-  AddGadgetItem(#WHD_SORT_COMBO,-1,"Sort By Category")
+  AddGadgetItem(#WHD_SORT_COMBO,-1,"Sort by 0-Z")
+  AddGadgetItem(#WHD_SORT_COMBO,-1,"Sort by Category")
   SetGadgetState(#WHD_SORT_COMBO,Sort_Type)
-  ComboBoxGadget(#WHD_LANGUAGE_CHECK,650,310,120,22)
-  AddGadgetItem(#WHD_LANGUAGE_CHECK,-1,"Ignore Languages")
-  AddGadgetItem(#WHD_LANGUAGE_CHECK,-1,"Split Languages")
-  SetGadgetState(#WHD_LANGUAGE_CHECK,Split_Languages)
+  ComboBoxGadget(#WHD_LANGUAGE_COMBO,650,310,120,22)
+  AddGadgetItem(#WHD_LANGUAGE_COMBO,-1,"Ignore Languages")
+  AddGadgetItem(#WHD_LANGUAGE_COMBO,-1,"Split Languages")
+  SetGadgetState(#WHD_LANGUAGE_COMBO,Split_Languages)
 
-  DisableGadget(#WHD_LANGUAGE_CHECK,#True)
+  DisableGadget(#WHD_LANGUAGE_COMBO,#True)
 
   FrameGadget(#PB_Any,455,340,320,240,"Filter")
   
@@ -3432,7 +3477,7 @@ Procedure Main_Window()
   ComboBoxGadget(#DOWNLOAD_TYPE_COMBO,785,90,80,23)
   AddGadgetItem(#DOWNLOAD_TYPE_COMBO,-1," FTP")
   AddGadgetItem(#DOWNLOAD_TYPE_COMBO,-1," HTTP")
-  SetGadgetState(#DOWNLOAD_TYPE_COMBO,Download_Type)
+  GadgetToolTip(#DOWNLOAD_TYPE_COMBO,"Server Connection Type Selector")
   
   FrameGadget(#PB_Any,780,120,90,195,"Lists")
   
@@ -3445,7 +3490,7 @@ Procedure Main_Window()
   FrameGadget(#PB_Any,780,320,90,90,"Data")
   
   ButtonGadget(#CLEANUP_BUTTON,785,340,80,30,"Clean Files") 
-  ButtonGadget(#CLEAR_LIST_BUTTON,785,375,80,30,"Clear Data")
+  ButtonGadget(#CLEAR_DATA_BUTTON,785,375,80,30,"Clear Data")
   
   FrameGadget(#PB_Any,780,415,90,165,"Misc")
   
@@ -3491,6 +3536,8 @@ Procedure Main_Window()
   Set_List_Gadgets(#True)
   DisableGadget(#CLEAR_EDITS_BUTTON,#True)
   
+  Set_Filter_Gadgets()
+  
   Update_Statusbar()
   
   Resume_Window(#MAIN_WINDOW)
@@ -3506,18 +3553,25 @@ LoadFont(#MAIN_FONT,GetDefaultFontName(),9,#PB_Font_HighQuality)
 
 Default_Settings()
 
+Debug Download_Type
+
+Main_Window()
+
+Set_Filter(#True)
+
 If FileSize(Home_Path+Prefs_Name)=-1 
   Save_Prefs(Home_Path+Prefs_Name)
   First_Run=#True
 Else
-  Load_Prefs(Home_Path+Prefs_Name) 
+  Load_Prefs(Home_Path+Prefs_Name)
+
 EndIf
+
+Update_Prefs_Gadgets()
 
 If FileSize(List_Path)<>-2
   CreateDirectory(List_Path)
 EndIf
-
-Main_Window()
 
 If First_Run
   If MessageRequester("First Run", "Would you like to open the help window?",#PB_MessageRequester_Info|#PB_MessageRequester_YesNo)=#PB_MessageRequester_Yes
@@ -3532,6 +3586,23 @@ Repeat
   Gadget=EventGadget()
   Type=EventType()
   
+  Select Event
+  
+      Case #WM_KEYDOWN
+      If CountGadgetItems(#MAIN_LIST)>0
+        If EventwParam() = #VK_F5
+          Update_File_List()
+          Filter_List()
+          Draw_List()
+        EndIf
+      EndIf
+      
+      If EventwParam() = #VK_F1
+        Help_Window()
+      EndIf
+      
+  EndSelect
+      
   Select Gadget
       
     Case #DOWNLOAD_TYPE_COMBO
@@ -3543,26 +3614,26 @@ Repeat
       Sort_Type=GetGadgetState(#WHD_SORT_COMBO)
       If Sort_Type<>0
         If Sort_Type=2
-          DisableGadget(#WHD_LANGUAGE_CHECK,#False)
+          DisableGadget(#WHD_LANGUAGE_COMBO,#False)
         Else
-          DisableGadget(#WHD_LANGUAGE_CHECK,#True)
+          DisableGadget(#WHD_LANGUAGE_COMBO,#True)
         EndIf
       EndIf
       If Sort_Type=0
         Split_Languages=0
-        SetGadgetState(#WHD_LANGUAGE_CHECK,0)
+        SetGadgetState(#WHD_LANGUAGE_COMBO,0)
       EndIf
       
     Case #WHD_SORT_COMBO
       Sort_Type=GetGadgetState(#WHD_SORT_COMBO)
       If Sort_Type=0
-        DisableGadget(#WHD_LANGUAGE_CHECK,#True)
+        DisableGadget(#WHD_LANGUAGE_COMBO,#True)
       Else
-        DisableGadget(#WHD_LANGUAGE_CHECK,#False)
+        DisableGadget(#WHD_LANGUAGE_COMBO,#False)
       EndIf
       
-    Case #WHD_LANGUAGE_CHECK
-      Split_Languages=GetGadgetState(#WHD_LANGUAGE_CHECK)
+    Case #WHD_LANGUAGE_COMBO
+      Split_Languages=GetGadgetState(#WHD_LANGUAGE_COMBO)
       
     Case #DONATE_BUTTON
       If  EventType()=#PB_EventType_LeftClick
@@ -3667,14 +3738,19 @@ Repeat
         FTP_Port=Val(GetGadgetText(#FTP_PORT_STRING))
       EndIf 
       
+    Case #FTP_FOLDER_STRING
+      If Type=#PB_EventType_Change
+        FTP_Folder=GetGadgetText(#FTP_FOLDER_STRING)
+      EndIf
+      
     Case #FTP_SERVER_STRING
       If Type=#PB_EventType_Change
         FTP_Server=GetGadgetText(#FTP_SERVER_STRING)
       EndIf 
       
-    Case #HTTP_PATH_STRING
+    Case #HTTP_SERVER_STRING
       If Type=#PB_EventType_Change
-        HTTP_Server=GetGadgetText(#HTTP_PATH_STRING)
+        HTTP_Server=GetGadgetText(#HTTP_SERVER_STRING)
       EndIf   
       
     Case #LIST_LOAD_BUTTON
@@ -3762,7 +3838,7 @@ Repeat
       Update_File_List()
       Draw_List()
       
-    Case #CLEAR_LIST_BUTTON
+    Case #CLEAR_DATA_BUTTON
       If MessageRequester("Warning", "Clear all data?", #PB_MessageRequester_YesNo|#PB_MessageRequester_Warning)=#PB_MessageRequester_Yes
         If ListSize(Game_List())>0 : ClearList(Game_List()) : EndIf
         If ListSize(Delete_List())>0 : ClearList(Delete_List()) : EndIf
@@ -3770,18 +3846,10 @@ Repeat
         If ListSize(Down_List())>0 : ClearList(Down_List()) : EndIf
         If ListSize(Filtered_List())>0 : ClearList(Filtered_List()) : EndIf
         If ListSize(Directory_List())>0 : ClearList(Directory_List()) : EndIf
-        Default_Settings()
         Pause_Window(#MAIN_WINDOW)
         ClearGadgetItems(#MAIN_LIST)
-        SetGadgetText(#WHD_MAIN_STRING,WHD_Folder)
-        SetGadgetText(#WHD_GAME_STRING,WHD_Game_Folder)
-        SetGadgetText(#WHD_DEMO_STRING,WHD_Demo_Folder)
-        SetGadgetText(#WHD_BETA_STRING,WHD_Beta_Folder)
-        SetGadgetText(#WHD_MAGS_STRING,WHD_Mags_Folder)        
-        SetGadgetText(#FTP_USER_STRING,FTP_User)
-        SetGadgetText(#FTP_PASS_STRING,FTP_Pass)
+        Update_Prefs_Gadgets()
         DisableGadget(#CLEAR_EDITS_BUTTON,#True)
-        Set_Filter(#True)
         Disable_Gadgets(#True)
         Set_List_Gadgets(#True)
         Update_Title()
@@ -3801,26 +3869,32 @@ Repeat
       Path=OpenFileRequester("Load Prefs",Home_Path,"Prefs File (*.prefs)|*.prefs",0)
       If Path<>""
         Load_Prefs(Path)
-        SetGadgetText(#FTP_USER_STRING,ftp_user)
-        SetGadgetText(#FTP_PASS_STRING,ftp_pass)
+        SetGadgetText(#FTP_USER_STRING,FTP_User)
+        SetGadgetText(#FTP_PASS_STRING,FTP_Pass)
+        SetGadgetText(#FTP_SERVER_STRING,FTP_Server)
+        SetGadgetText(#FTP_PORT_STRING,Str(FTP_Port))
+        SetGadgetText(#FTP_FOLDER_STRING,FTP_Folder)
+        SetGadgetText(#HTTP_SERVER_STRING,HTTP_Server)
         SetGadgetText(#WHD_MAIN_STRING,WHD_Folder)
         SetGadgetText(#WHD_GAME_STRING,WHD_Game_Folder)
         SetGadgetText(#WHD_DEMO_STRING,WHD_Demo_Folder)
         SetGadgetText(#WHD_BETA_STRING,WHD_Beta_Folder)
         SetGadgetText(#WHD_MAGS_STRING,WHD_Mags_Folder)
         SetGadgetState(#WHD_SORT_COMBO,Sort_Type)
+        SetGadgetState(#WHD_LANGUAGE_COMBO,Split_Languages)
         
         If Sort_Type=2
-          DisableGadget(#WHD_LANGUAGE_CHECK,#False)
+          DisableGadget(#WHD_LANGUAGE_COMBO,#False)
         Else
           Split_Languages=0
-          SetGadgetState(#WHD_LANGUAGE_CHECK,0)
-          DisableGadget(#WHD_LANGUAGE_CHECK,#True)
+          SetGadgetState(#WHD_LANGUAGE_COMBO,0)
+          DisableGadget(#WHD_LANGUAGE_COMBO,#True)
         EndIf
-        
+        Update_Prefs_Gadgets()
         Update_File_List()
         Set_Filter_Gadgets()
         Draw_List()
+        
       EndIf
       
     Case #SAVE_PREFS_BUTTON
@@ -3967,15 +4041,16 @@ ForEver
 
 End
 ; IDE Options = PureBasic 6.00 LTS (Windows - x64)
-; CursorPosition = 2850
-; FirstLine = 587
-; Folding = AAAEAAAAAk-
+; CursorPosition = 3570
+; FirstLine = 580
+; Folding = AAIAAAAAAA9
 ; Optimizer
 ; EnableThread
 ; EnableXP
 ; DPIAware
 ; UseIcon = boing.ico
-; Executable = E:\WHDLoadTool\WHDTool_x64.exe
+; Executable = E:\WHDLoadTool\WHDLoadTool.exe
+; CurrentDirectory = E:\WHDLoadTool\
 ; Compiler = PureBasic 6.00 LTS (Windows - x64)
 ; Debugger = Standalone
 ; Warnings = Display
