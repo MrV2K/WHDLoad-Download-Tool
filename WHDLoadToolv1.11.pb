@@ -244,6 +244,7 @@ Enumeration
   #CLEAR_EDITS_BUTTON
   
   #DONATE_BUTTON
+  #COFFEE_BUTTON
   
   #FTP_PASS_STRING
   #FTP_USER_STRING
@@ -3350,7 +3351,7 @@ Procedure About_Window()
   
   Protected oldgadgetlist.i, output$
   
-  OpenWindow(#ABOUT_WINDOW,0,0,340,300,"About", #PB_Window_SystemMenu|#PB_Window_WindowCentered,WindowID(#MAIN_WINDOW))
+  OpenWindow(#ABOUT_WINDOW,0,0,340,360,"About", #PB_Window_SystemMenu|#PB_Window_WindowCentered,WindowID(#MAIN_WINDOW))
   
   SetWindowColor(#ABOUT_WINDOW,#White)
   
@@ -3362,9 +3363,9 @@ Procedure About_Window()
   
   output$="         ╔═════════════════════════════════╗"+#CRLF$
   output$+"         ║                                 ║"+#CRLF$
-  output$+"         ║   WHDLoad Download Tool v"+Version+"    ║"+#CRLF$
+  output$+"         ║   WHDLoad Download Tool v"+Version+"   ║"+#CRLF$
   output$+"         ║                                 ║"+#CRLF$
-  output$+"         ║    © 2022 Paul Vince (MrV2k)    ║"+#CRLF$
+  output$+"         ║    © 2023 Paul Vince (MrV2k)    ║"+#CRLF$
   output$+"         ║                                 ║"+#CRLF$
   output$+"         ╚═════════════════════════════════╝"+#CRLF$
   output$+#CRLF$
@@ -3380,13 +3381,16 @@ Procedure About_Window()
   StringGadget(#ABOUT_STRING,0,0,340,270,output$, #PB_String_ReadOnly | #ES_MULTILINE | #ESB_DISABLE_LEFT|#ESB_DISABLE_RIGHT)
   SetWindowLongPtr_(GadgetID(#ABOUT_STRING),#GWL_EXSTYLE,0)
   SetWindowPos_(GadgetID(#ABOUT_STRING),0,0,0,0,0,#SWP_NOMOVE | #SWP_NOSIZE | #SWP_FRAMECHANGED)
-  
   SetGadgetFont(#ABOUT_STRING,FontID(#HELP_FONT))
-  
   HyperLinkGadget(#ABOUT_LINK,50,270,250,25,"Please Donate Here To Support The Turran FTP",#Red,#PB_HyperLink_Underline)
   SetGadgetColor(#ABOUT_STRING,#PB_Gadget_BackColor,#White)
   SetGadgetColor(#ABOUT_LINK,#PB_Gadget_FrontColor,#Blue)
   SetGadgetColor(#ABOUT_LINK,#PB_Gadget_BackColor,#White)
+  
+  HyperLinkGadget(#COFFEE_BUTTON,7,310,330,25,"If you want to buy me a coffee, please use this PayPal.me link.",#Red,#PB_HyperLink_Underline)
+
+  SetGadgetColor(#COFFEE_BUTTON,#PB_Gadget_FrontColor,#Blue)
+  SetGadgetColor(#COFFEE_BUTTON,#PB_Gadget_BackColor,#White)
   
   Resume_Window(#ABOUT_WINDOW)
   
@@ -3394,6 +3398,10 @@ Procedure About_Window()
     Event=WaitWindowEvent()
     If EventGadget()=#ABOUT_LINK And EventType()=#PB_EventType_LeftClick
       path="https://www.paypal.com/donate/?cmd=_donations&business=eab@grandis.nu&lc=US&item_name=Donation+to+EAB+FTP&no_note=0&cn=&curency_code=USD&bn=PP-DonationsBF:btn_donateCC_LG.gif:NonHosted"
+      RunProgram(path,"","")
+    EndIf
+  If EventGadget()=#COFFEE_BUTTON And EventType()=#PB_EventType_LeftClick
+      path="https://www.paypal.com/paypalme/paulvinceags2"
       RunProgram(path,"","")
     EndIf
     If EventWindow()=#ABOUT_WINDOW And Event()=#PB_Event_CloseWindow
@@ -3427,9 +3435,9 @@ Procedure Help_Window()
   
   output$="                ╔══════════════════════════════════════════╗"+#CRLF$
   output$+"                ║                                          ║"+#CRLF$
-  output$+"                ║        WHDLoad Download Tool v"+Version+"        ║"+#CRLF$
+  output$+"                ║        WHDLoad Download Tool v"+Version+"       ║"+#CRLF$
   output$+"                ║                                          ║"+#CRLF$
-  output$+"                ║         © 2022 Paul Vince (MrV2k)        ║"+#CRLF$
+  output$+"                ║         © 2023 Paul Vince (MrV2k)        ║"+#CRLF$
   output$+"                ║                                          ║"+#CRLF$
   output$+"                ╚══════════════════════════════════════════╝"+#CRLF$
   output$+#CRLF$+#CRLF$
@@ -4065,7 +4073,7 @@ Repeat
         path="https://www.paypal.com/donate/?cmd=_donations&business=eab@grandis.nu&lc=US&item_name=Donation+to+EAB+FTP&no_note=0&cn=&curency_code=USD&bn=PP-DonationsBF:btn_donateCC_LG.gif:NonHosted"
         RunProgram(path,"","")
       EndIf
-      
+            
     Case #MAIN_LIST
       If Type=#PB_EventType_Change
         If GetGadgetState(#MAIN_LIST)<>-1
@@ -4694,9 +4702,9 @@ ForEver
 
 End
 ; IDE Options = PureBasic 6.00 LTS (Windows - x64)
-; CursorPosition = 159
-; FirstLine = 129
-; Folding = AAAAAAAAAA5
+; CursorPosition = 3367
+; FirstLine = 611
+; Folding = AAAAAAAAAA6
 ; Optimizer
 ; EnableThread
 ; EnableXP
