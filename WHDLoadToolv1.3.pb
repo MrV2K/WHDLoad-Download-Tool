@@ -1,6 +1,6 @@
 ﻿;- ############### WHDLoad Download Tool Info
 ;
-; Version 1.2
+; Version 1.3
 ;
 ; © 2023 Paul Vince (MrV2k)
 ;
@@ -181,8 +181,27 @@ Global Version.s="1.3"
 ; Fixed a bug when the FTP and sort settings weren't applied to the relevant gadgets when loading the default prefs.
 ;
 ;============================================
+; VERSION INFO v1.3
+;============================================
+;
+; Added CRC32 checking to the update procedure.
+; Added support for the new Beta Demo folder on the FTP. All beta files are still saved to the selected beta folder.
+; Users are now prompted to download the dat files when a prefs file is loaded and no data has been downloaded.
+; All download files are size checked against the dat files and removed it they are wrong.
+; HTTP download errors are logged in a file called error_log.txt.
+; You can now toggle the file tree in the download preview.
+; Downloads are a tiny bit slower as the files are size and crc checked once received.
+; You can now save the download list as a text file.
+; Fixed status bar spacing.
+; Changing prefs files will prompt for clearing the database and will rescan the WHDLoad folders.
+; Save Prefs button is now active all the time.
+; The file list now shows any errors in your files by highlighting them with red for missing and blue for bad CRC32.
+; Moved all donate links to a new window.
+;
+;============================================
 ; To Do List
 ;============================================
+;
 ;
 ;============================================
 ;
@@ -205,6 +224,7 @@ Enumeration
   #FTP
   #REGEX
   #LIST_FILE
+  #FILE
   
   #MAIN_WINDOW
   #MAIN_STATUS
@@ -228,6 +248,10 @@ Enumeration
   #HELP_EDITOR
   #HELP_FONT
   
+  #DONATE_WINDOW
+  #DONATE_BUTTON_A
+  #DONATE_BUTTON_B
+  
   #ABOUT_WINDOW
   #ABOUT_STRING
   #ABOUT_LINK
@@ -249,6 +273,8 @@ Enumeration
   #DOWNLOAD_YES
   #DOWNLOAD_NO
   #DOWNLOAD_A500MINI
+  #DOWNLOAD_SAVE
+  #DOWNLOAD_EXPAND
   
   #SCAN_BUTTON
   #DOWNLOAD_BUTTON
@@ -365,9 +391,12 @@ Structure Game_Data
   File_Name.s
   File_Path.s
   File_CRC.s
+  File_Archive_CRC.s
+  File_InvalidCRC.b
   File_SubFolder.s
   File_Genre.s
   File_Type.s
+  File_Beta_Type.s
   File_BETA.b
   File_Language.s
   File_Chip.b
@@ -483,9 +512,12 @@ EndStructure
 Structure Down_Data
   Down_Name.s
   Down_Type.s
+  Down_Index.i
   Down_CRC.s
+  Down_FTP_CRC.s
   Down_Genre.s
   Down_Folder.s
+  Down_Size.i
   Down_FTP_Folder.s
   Down_HTTP_Folder.s
   Down_SubFolder_1.s
@@ -498,6 +530,13 @@ EndStructure
 Structure Own_Data
   own_file.s
   own_folder.s
+  own_crc32.s
+  own_size.i
+EndStructure
+
+Structure Del_Structure
+  del_name.s
+  del_type.i
 EndStructure
 
 Structure Edit_Data
@@ -511,6 +550,7 @@ EndStructure
 Structure File_Data
   R_File_Size.l
   R_File_Name.s
+  R_File_File.s
   R_File_CRC32.s
 EndStructure
 
@@ -564,7 +604,7 @@ Global NewList Editor_List.Edit_Data()
 
 ;- ############### Global Variables
 
-Global Path.s, Count.i, Folder.s, FCount.f
+Global Path.s, Path2.s, Count.i, Folder.s, FCount.f
 Global Home_Path.s=GetCurrentDirectory()
 
 Global Temp_Folder.s=GetTemporaryDirectory()+"whd_temp\"
@@ -597,7 +637,8 @@ Global WHD_Game_Folder.s
 Global FTP_Demo_Folder.s
 Global WHD_Demo_Folder.s
 Global WHD_Beta_Folder.s
-Global FTP_Beta_Folder.s
+Global FTP_Beta_Folder1.s
+Global FTP_Beta_Folder2.s
 Global WHD_Mags_Folder.s
 Global FTP_Mags_Folder.s
 
@@ -720,13 +761,6 @@ Macro Version()
   
 EndMacro
 
-; Macro Update_File_List()
-;   
-;   ClearList(File_List())
-;   List_Files_Recursive(WHD_Folder,File_List(),"")  
-;   
-; EndMacro
-
 Macro Update_Title()
   
   FCount=0
@@ -770,7 +804,8 @@ Macro Default_Settings()
   WHD_Game_Folder="Games"
   FTP_Demo_Folder="Commodore_Amiga_-_WHDLoad_-_Demos"
   WHD_Demo_Folder="Demos"
-  FTP_Beta_Folder="Commodore_Amiga_-_WHDLoad_-_Games_-_Beta_&_Unreleased"
+  FTP_Beta_Folder1="Commodore_Amiga_-_WHDLoad_-_Games_-_Beta_&_Unreleased"
+  FTP_Beta_Folder2="Commodore_Amiga_-_WHDLoad_-_Demos_-_Beta_&_Unreleased"
   WHD_Beta_Folder="Beta"
   FTP_Mags_Folder="Commodore_Amiga_-_WHDLoad_-_Magazines"
   WHD_Mags_Folder="Magazines"
@@ -797,6 +832,17 @@ EndMacro
 
 Macro OpenFolder(folder_path)
   RunProgram(folder_path)  
+EndMacro
+
+Macro Delete_File_List_Entry(entry)
+  
+  ForEach File_List_Size()
+    If entry=File_List_Size()\R_File_File
+      DeleteElement(File_List_Size())
+      Break
+    EndIf
+  Next
+  
 EndMacro
 
 ;- ############### Misc Procedures
@@ -851,6 +897,23 @@ Procedure TreeExpandAllItems(TreeId)
     SetGadgetItemState(TreeId, CurItem, CurState)    
   Next
   
+EndProcedure
+
+Procedure TreeCollapseAllItems(TreeId)
+  Protected CurItem.i, CurState.i, ItemCnt.i = CountGadgetItems(TreeId) 
+  If ItemCnt <= 0: ProcedureReturn: EndIf 
+  For CurItem = 0 To ItemCnt-1
+    CurState = GetGadgetItemState(TreeId, CurItem)
+    CurState = CurState ! #PB_Tree_Expanded
+    If CurState & #PB_Tree_Checked
+      CurState = #PB_Tree_Checked | #PB_Tree_Collapsed
+    ElseIf CurState & #PB_Tree_Inbetween
+      CurState = #PB_Tree_Inbetween | #PB_Tree_Collapsed
+    Else
+      CurState = #PB_Tree_Collapsed
+    EndIf
+    SetGadgetItemState(TreeId, CurItem, CurState)    
+  Next
 EndProcedure
 
 ;- ############### Update Gadgets
@@ -937,7 +1000,7 @@ Procedure Disable_Gadgets(bool.b)
   DisableGadget(#LIST_LOAD_BUTTON,bool)
   DisableGadget(#LIST_SAVE_BUTTON,bool)
   
-  DisableGadget(#SAVE_PREFS_BUTTON,bool)
+  ;DisableGadget(#SAVE_PREFS_BUTTON,bool)
   
   DisableGadget(#WHD_MAIN_STRING,bool)
   DisableGadget(#WHD_GAME_STRING,bool)
@@ -1046,10 +1109,12 @@ Procedure Make_Download_List()
   
   ForEach Filtered_List()
     SelectElement(Game_List(),Filtered_List())
-    If Game_List()\File_Available<>#True ; if file not available locally add to downlist
+    If Game_List()\File_Available<>#True Or Game_List()\File_CRC<>Game_List()\File_Archive_CRC ; if file not available locally or has an invalid crc add to downlist
       AddElement(Down_List())
       Down_List()\Down_Name=Game_List()\File_Name
       Down_List()\Down_Type=Game_List()\File_Type
+      Down_List()\Down_Size=Game_List()\File_Size
+      Down_List()\Down_Index=ListIndex(Game_List())
       Down_List()\Down_CRC=Game_List()\File_CRC
       Down_List()\Down_Folder=Game_List()\File_SubFolder
       Down_List()\Down_0toZ=Game_List()\File_SubFolder
@@ -1079,13 +1144,19 @@ Procedure Make_Download_List()
         Down_List()\Down_Type="Beta"
         If Game_List()\File_AGA : Down_List()\Down_Folder="AGA" : EndIf
         If Game_List()\File_AGA=#False : Down_List()\Down_Folder="ECS-OCS" : EndIf
-        Down_List()\Down_FTP_Folder=FTP_Beta_Folder
+        Down_List()\Down_FTP_Folder=FTP_Beta_Folder1
       EndIf 
       If Game_List()\File_Type="Demo" 
         If Game_List()\File_AGA : Down_List()\Down_Folder="AGA" : EndIf
         If Game_List()\File_AGA=#False : Down_List()\Down_Folder="ECS-OCS" : EndIf
         Down_List()\Down_FTP_Folder=FTP_Demo_Folder
-      EndIf          
+      EndIf   
+      If Game_List()\File_Type="Demo" And Game_List()\File_BETA=#True
+        Down_List()\Down_Type="Beta"
+        If Game_List()\File_AGA : Down_List()\Down_Folder="AGA" : EndIf
+        If Game_List()\File_AGA=#False : Down_List()\Down_Folder="ECS-OCS" : EndIf
+        Down_List()\Down_FTP_Folder=FTP_Beta_Folder2
+      EndIf 
       If Game_List()\File_Type="Magazine" 
         Down_List()\Down_Folder="Magazine"
         Down_List()\Down_FTP_Folder=FTP_Mags_Folder
@@ -1137,13 +1208,11 @@ Procedure List_Files_Recursive(Dir.s, List Files.s(), Extension.s) ; <------> Ad
 EndProcedure
 
 Procedure List_Files_Recursive_Size(Dir.s, List Files.File_Data(), Extension.s) ; <------> Adds All Files In A Folder Into The Supplied List with size information
-  
-  UseCRC32Fingerprint()
-  
+   
   Protected NewList Directories.s()
   
   Protected Folder_LIST
-  
+   
   If Right(Dir, 1) <> Chr(92)
     Dir + Chr(92)
   EndIf
@@ -1154,7 +1223,7 @@ Procedure List_Files_Recursive_Size(Dir.s, List Files.File_Data(), Extension.s) 
         Case #PB_DirectoryEntry_File
           AddElement(Files())
           Files()\R_File_Name = Dir + DirectoryEntryName(Folder_LIST) 
-          Files()\R_File_Size = DirectoryEntrySize(Folder_LIST)
+          Files()\R_File_File = DirectoryEntryName(Folder_LIST) 
           Files()\R_File_CRC32 = FileFingerprint(Files()\R_File_Name,#PB_Cipher_CRC32)
         Case #PB_DirectoryEntry_Directory
           Select DirectoryEntryName(Folder_LIST)
@@ -1169,8 +1238,6 @@ Procedure List_Files_Recursive_Size(Dir.s, List Files.File_Data(), Extension.s) 
     Wend
     FinishDirectory(Folder_LIST)
     ForEach Directories()
-      AddElement(Directory_List())
-      Directory_List()=Directories()
       List_Files_Recursive_Size(Directories(), Files(), Extension)
     Next
   EndIf 
@@ -1374,6 +1441,32 @@ Procedure Make_Folder()
   
 EndProcedure
 
+Procedure Rescan_Files()
+  OpenConsole("Scanning...")
+  Center_Console()
+  PrintN("")
+  PrintNCol("Scanning WHDLoad folders...",9,0)
+  ClearList(File_List_Size())
+  List_Files_Recursive_Size(WHD_Folder,File_List_Size(),"")    
+  
+  NewMap Comp_Map.i()
+  
+  ForEach Game_List()
+    Comp_Map(Game_List()\File_Name)=ListIndex(Game_List())
+  Next
+  
+  ForEach File_List_Size()
+    If FindMapElement(Comp_Map(),File_List_Size()\R_File_File)
+      SelectElement(Game_List(),Comp_Map())
+      Game_List()\File_Archive_CRC=File_List_Size()\R_File_CRC32
+    EndIf
+  Next
+  
+  FreeMap(Comp_Map())
+  
+  CloseConsole()
+EndProcedure
+        
 ;- ############### Filter
 
 Procedure.b Check_Filter()
@@ -1606,7 +1699,7 @@ Procedure Filter_List()
   ClearList(Filtered_List())
   
   ForEach Game_List()
-    File_Map(Game_List()\File_Name)=ListIndex(Game_List())
+    File_Map(LCase(Game_List()\File_Name))=ListIndex(Game_List())
     Game_List()\File_Available=#False
     Game_List()\File_Filtered=#False  
     If Game_List()\File_Ignore=#True : Game_List()\File_Filtered=#True : EndIf
@@ -1676,12 +1769,12 @@ Procedure Filter_List()
   
   Avail_Games=0  
   
-  ForEach File_List()  
-    If FindMapElement(File_Map(),GetFilePart(File_List()))
+  ForEach File_List_Size()  
+    If FindMapElement(File_Map(),LCase(File_List_Size()\R_File_File)) 
       SelectElement(Game_List(),File_Map())
       Game_List()\File_Available=#True
       Avail_Games+1
-      Game_List()\File_Path=GetPathPart(File_List())
+      Game_List()\File_Path=GetPathPart(File_List_Size()\R_File_Name)
     EndIf
   Next
   
@@ -1708,7 +1801,8 @@ Procedure Save_Prefs(p_path.s)
   WritePreferenceString("FTP_Folder",FTP_Folder)
   WritePreferenceString("FTP_Game_Folder",FTP_Game_Folder)
   WritePreferenceString("FTP_Demo_Folder",FTP_Demo_Folder)
-  WritePreferenceString("FTP_Beta_Folder",FTP_Beta_Folder)
+  WritePreferenceString("FTP_Beta_Folder1",FTP_Beta_Folder1)
+  WritePreferenceString("FTP_Beta_Folder2",FTP_Beta_Folder2)
   WritePreferenceString("FTP_Magazine_Folder",FTP_Mags_Folder)
   WritePreferenceInteger("Download_Type",Download_Type)
   
@@ -1804,7 +1898,8 @@ Procedure Load_Prefs(p_path.s)
     FTP_Folder=ReadPreferenceString("FTP_Folder",FTP_Folder)
     FTP_Game_Folder=ReadPreferenceString("FTP_Game_Folder",FTP_Game_Folder)
     FTP_Demo_Folder=ReadPreferenceString("FTP_Demo_Folder",FTP_Demo_Folder)
-    FTP_Beta_Folder=ReadPreferenceString("FTP_Beta_Folder",FTP_Beta_Folder)
+    FTP_Beta_Folder1=ReadPreferenceString("FTP_Beta_Folder1",FTP_Beta_Folder1)
+    FTP_Beta_Folder2=ReadPreferenceString("FTP_Beta_Folder2",FTP_Beta_Folder2)
     FTP_Mags_Folder=ReadPreferenceString("FTP_Magazine_Folder",FTP_Mags_Folder)
     Download_Type=ReadPreferenceInteger("Download_Type",Download_Type)
     
@@ -1920,6 +2015,7 @@ Procedure FillTree(*CurrentNode)
               Case "name"
                 AddElement(Game_List()) 
                 Game_List()\File_Type=Path
+                Game_List()\File_Beta_Type=Path2
                 Game_List()\File_Name=attribval 
                 Game_List()\File_SubFolder=Folder
                 
@@ -2243,21 +2339,233 @@ Procedure.l FTPSetDir(hConnect.l,Dir.s)
   ProcedureReturn FtpSetCurrentDirectory_(hConnect,Dir) 
 EndProcedure 
 
-Procedure.l FTPCreateDir(hConnect.l,Dir.s) 
-  ProcedureReturn FtpCreateDirectory_(hConnect,Dir) 
-EndProcedure 
-
 Procedure.l FTPDownload(hConnect.l,Source.s,Dest.s) 
   ProcedureReturn FtpGetFile_(hConnect,Source,Dest,0,#FILE_ATTRIBUTE_NORMAL,#FTP_TRANSFER_TYPE_BINARY,0) 
-EndProcedure 
-
-Procedure.l FTPUpload(hConnect.l,Source.s,Dest.s) 
-  ProcedureReturn FtpPutFile_(hConnect,Source,Dest,0,0) 
 EndProcedure 
 
 Procedure.l FTPClose(hInternet.l) 
   ProcedureReturn InternetCloseHandle_(hInternet) 
 EndProcedure 
+
+Procedure Update_Files(bool.b)
+  
+  ;Structure 0=Not needed 1=Wrong CRC
+  
+  Protected NewList U_Delete_List.Del_Structure()
+  Protected NewList File_List_Own.File_Data()
+  
+  Protected oldgadgetlist.i, base_count.i, update.b
+  
+  Protected NewMap Delete_Map.i()
+  Protected NewMap Archive_Map.s()
+  Protected NewList Own_Files.Own_Data()
+  
+  update=#False
+  
+  ClearList(U_Delete_List())
+  
+  ForEach Filtered_List()
+    SelectElement(Game_List(),Filtered_List())
+    Archive_Map(Game_List()\File_Name)=Str(ListIndex(Game_List()))
+  Next
+  
+  ClearList(File_List())
+  List_Files_Recursive(WHD_Folder,File_List(),"") 
+  
+  ForEach File_List()
+    If Not FindMapElement(Archive_Map(),GetFilePart(File_List()))
+      If GetExtensionPart(File_List())="lha" Or GetExtensionPart(File_List())="lzx"
+        AddElement(U_Delete_List())
+        U_Delete_List()\del_name=File_List()
+        U_Delete_List()\del_type=0
+      EndIf
+    EndIf
+    If FindMapElement(Archive_Map(),GetFilePart(File_List()))
+      SelectElement(Game_List(),Val(Archive_Map()))
+      If Game_List()\File_CRC<>Game_List()\File_Archive_CRC
+        AddElement(U_Delete_List())
+        U_Delete_List()\del_name=File_List()
+        U_Delete_List()\del_type=1
+      EndIf
+    EndIf
+  Next
+  
+  ClearList(File_List())
+  
+  If Bool
+    
+    OpenWindow(#DELETE_WINDOW,0,0,385,400,"Scanning WHDLoad folders. Please wait...", #PB_Window_Tool|#PB_Window_WindowCentered,WindowID(#MAIN_WINDOW))
+    
+    oldgadgetlist=UseGadgetList(WindowID(#DELETE_WINDOW))
+    
+    DisableWindow(#MAIN_WINDOW,#True)
+    
+    Pause_Window(#DELETE_WINDOW)
+    
+    TreeGadget(#DELETE_LIST,0,0,385,360)
+    ButtonGadget(#DELETE_DEL_BUTTON,5,365,90,30,"Delete")
+    ButtonGadget(#DELETE_BACKUP_BUTTON,100,365,90,30,"Back Up")
+    ButtonGadget(#DELETE_OWN_BUTTON,195,365,90,30,"Own Files")
+    ButtonGadget(#DELETE_CANCEL_BUTTON,290,365,90,30,"Cancel")   
+    
+    Pause_Gadget(#DELETE_LIST)
+    
+    If ListSize(U_Delete_List())>0
+      SetWindowTitle(#DELETE_WINDOW,"Found "+Str(ListSize(U_Delete_List()))+" incorrect files. Please wait...")
+      ForEach U_Delete_List()
+        AddGadgetItem(#DELETE_LIST,-1,U_Delete_List()\del_name,0,0)
+        If U_Delete_List()\del_type=0
+          AddGadgetItem(#DELETE_LIST,-1,"No longer needed!",0,1)
+        EndIf
+        If U_Delete_List()\del_type=1
+          AddGadgetItem(#DELETE_LIST,-1,"Invalid CRC32!",0,1)
+        EndIf
+      Next
+      #TVM_SETTEXTCOLOR = 4382
+      SendMessage_(GadgetID(#DELETE_LIST),#TVM_SETTEXTCOLOR,0,RGB(255,0,0))
+    EndIf
+        
+    If ListSize(U_Delete_List())=0
+      DisableGadget(#DELETE_BACKUP_BUTTON,#True)
+      DisableGadget(#DELETE_DEL_BUTTON,#True)
+    EndIf
+    
+    TreeExpandAllItems(#DELETE_LIST)
+    
+    SetGadgetState(#DELETE_LIST,1)
+    
+    Resume_Gadget(#DELETE_LIST)   
+    
+    SetWindowTitle(#DELETE_WINDOW,"Remove Un-Needed Files ("+Str(ListSize(U_Delete_List()))+" files)")
+    
+    Resume_Window(#DELETE_WINDOW)
+    
+    Repeat
+      
+      Event=WaitWindowEvent()
+      Gadget=EventGadget()
+      
+      Select Gadget
+          
+        Case #DELETE_CANCEL_BUTTON : Break
+          
+        Case #DELETE_DEL_BUTTON
+          If ListSize(U_Delete_List())>0
+            If MessageRequester("Warning","Delete listed files?",#PB_MessageRequester_Warning|#PB_MessageRequester_YesNo)=#PB_MessageRequester_Yes
+              ForEach U_Delete_List() 
+                DeleteFile(U_Delete_List()\del_name)
+                Delete_File_List_Entry(U_Delete_List()\del_name)
+              Next
+              Break
+            EndIf         
+          Else
+            MessageRequester("Information","Nothing to delete.",#PB_MessageRequester_Info|#PB_MessageRequester_Ok)
+          EndIf
+          
+        Case #DELETE_BACKUP_BUTTON
+          If ListSize(U_Delete_List())>0
+            If MessageRequester("Warning","Back up listed files?",#PB_MessageRequester_Warning|#PB_MessageRequester_YesNo)=#PB_MessageRequester_Yes
+              ForEach U_Delete_List()
+                Count=CountString(U_Delete_List()\del_name,Chr(92))
+                Path=Home_Path+"Backup"
+                CreateDirectory(Path)
+                CopyFile(U_Delete_List()\del_name,Path+Chr(92)+GetFilePart(U_Delete_List()\del_name))
+                DeleteFile(U_Delete_List()\del_name)
+                Delete_File_List_Entry(U_Delete_List()\del_name)
+              Next
+              Rescan_Files()
+              Break
+            EndIf
+          Else
+            MessageRequester("Information","Nothing to move.",#PB_MessageRequester_Info|#PB_MessageRequester_Ok)
+          EndIf
+          
+        Case #DELETE_OWN_BUTTON
+          ClearList(U_Delete_List())
+          Path=PathRequester("Select a folder to scan.",Home_Path)
+          If Path<>""
+            List_Files_Recursive_Size(Path,File_List_Own(),"*.*")
+            ForEach File_List_Own()
+              If GetExtensionPart(File_List_Own()\R_File_Name)="lha" Or GetExtensionPart(File_List_Own()\R_File_Name)="lzx"
+                AddElement(Own_Files())
+                Own_Files()\own_file=File_List_Own()\R_File_File
+                Own_Files()\own_folder=GetPathPart(File_List_Own()\R_File_File)
+                Own_Files()\own_crc32=File_List_Own()\R_File_CRC32
+                Own_Files()\own_size=File_List_Own()\R_File_Size
+              EndIf
+            Next
+            ForEach Game_List() ; Create a map of all the filenames in the database
+              Archive_Map(Game_List()\File_Name)=Game_List()\File_CRC
+            Next
+            ForEach Own_Files() ; Compare the filenames in the own list and add any to the delete list
+              If Not FindMapElement(Archive_Map(),Own_Files()\own_file)
+                AddElement(U_Delete_List())
+                U_Delete_List()\del_name=Own_Files()\own_folder+Own_Files()\own_file
+                U_Delete_List()\del_type=0
+              EndIf
+              If FindMapElement(Archive_Map(),Own_Files()\own_file)
+                If Own_Files()\own_crc32<>Archive_Map()
+                  AddElement(U_Delete_List())
+                  U_Delete_List()\del_name=Own_Files()\own_folder+Own_Files()\own_file
+                  U_Delete_List()\del_type=1
+                EndIf
+              EndIf
+            Next
+            ClearGadgetItems(#DELETE_LIST)
+            If ListSize(U_Delete_List())>0
+              ForEach U_Delete_List()
+                AddGadgetItem(#DELETE_LIST,-1,U_Delete_List()\del_name,0,0)
+                If U_Delete_List()\del_type=0
+                  SetGadgetItemColor(#DELETE_LIST,-1,#PB_Gadget_FrontColor,#Red,1)
+                  AddGadgetItem(#DELETE_LIST,-1,"No longer needed!",0,1)
+                  SetGadgetItemColor(#DELETE_LIST,-1,#PB_Gadget_FrontColor,#Red,1)
+                EndIf
+                If U_Delete_List()\del_type=1
+                  SetGadgetItemColor(#DELETE_LIST,-1,#PB_Gadget_FrontColor,#Red,1)
+                  AddGadgetItem(#DELETE_LIST,-1,"Invalid CRC32!",0,1)
+                  SetGadgetItemColor(#DELETE_LIST,-1,#PB_Gadget_FrontColor,#Red,1)
+                EndIf
+              Next
+              DisableGadget(#DELETE_BACKUP_BUTTON,#False)
+              DisableGadget(#DELETE_DEL_BUTTON,#False) 
+              TreeExpandAllItems(#DELETE_LIST)
+            Else
+              MessageRequester("Information","Nothing to delete.",#PB_MessageRequester_Info|#PB_MessageRequester_Ok)
+            EndIf
+            SetWindowTitle(#DELETE_WINDOW,"Remove Un-Needed Files ("+Str(ListSize(Delete_List()))+" files)")
+          EndIf
+          
+      EndSelect
+      
+    ForEver
+    
+    UseGadgetList(oldgadgetlist)
+    
+    CloseWindow(#DELETE_WINDOW)
+    
+    update=#True
+    
+   EndIf
+  
+  FreeList(Own_Files())
+  FreeMap(Delete_Map())
+  FreeMap(Archive_Map())
+  ClearList(Delete_List())
+  ClearList(File_List())
+  FreeList(U_Delete_List())
+  FreeList(File_List_Own())
+  
+  DisableWindow(#MAIN_WINDOW,#False)
+  
+  For count = 1 To 3
+    ForEach Directory_List()
+      DeleteDirectorySafely(Directory_List())
+    Next
+  Next
+  
+  ProcedureReturn update
+  
+EndProcedure
 
 Procedure Scan_HTTP()
   
@@ -2409,9 +2717,21 @@ Procedure Scan_HTTP()
   
   ForEach XML_List()
     
-    If FindString(XML_List(), "Demos") : path="Demo" : EndIf
-    If FindString(XML_List(), "Games") : path="Game" : EndIf
-    If FindString(XML_List(), "Beta") : path="Beta" : EndIf
+    If FindString(XML_List(), "Demos")
+      If FindString(XML_List(), "Beta")
+        path="Beta" : path2="Demo"
+      Else
+        path="Demo" : path2=""
+      EndIf
+    EndIf
+    If FindString(XML_List(), "Games")
+      If FindString(XML_List(), "Beta")
+        path="Beta" : path2="Game"
+      Else
+        path="Game" : path2=""
+      EndIf
+    EndIf
+    
     If FindString(XML_List(), "Magazines") : path="Magazine" : EndIf
     
     xml_file=LoadXML(#PB_Any, XML_List()) 
@@ -2442,9 +2762,6 @@ Procedure Scan_HTTP()
   FreeList(Dat_List())
   FreeList(XML_List())
   FreeList(FTP_Dir_Files())
-  
-  ClearList(File_List())
-  List_Files_Recursive(WHD_Folder,File_List(),"") 
   
   Proc_Exit:
   
@@ -2594,9 +2911,21 @@ Procedure Scan_FTP()
   
   ForEach XML_List()
     
-    If FindString(XML_List(), "Demos") : path="Demo" : EndIf
-    If FindString(XML_List(), "Games") : path="Game" : EndIf
-    If FindString(XML_List(), "Beta") : path="Beta" : EndIf
+    If FindString(XML_List(), "Demos")
+      If FindString(XML_List(), "Beta")
+        path="Beta" : path2="Demo"
+      Else
+        path="Demo" : path2=""
+      EndIf
+    EndIf
+    If FindString(XML_List(), "Games")
+      If FindString(XML_List(), "Beta")
+        path="Beta" : path2="Game"
+      Else
+        path="Game" : path2=""
+      EndIf
+    EndIf
+    
     If FindString(XML_List(), "Magazines") : path="Magazine" : EndIf
     
     xml_file=LoadXML(#PB_Any, XML_List()) 
@@ -2627,9 +2956,6 @@ Procedure Scan_FTP()
   FreeList(Dat_List())
   FreeList(XML_List())
   FreeList(FTP_Dir_Files())
-  
-  ClearList(File_List())
-  List_Files_Recursive(WHD_Folder,File_List(),"")  
   
   Proc_Exit:
   
@@ -2915,13 +3241,16 @@ EndMacro
 
 Procedure Draw_Preview()
   
-  Protected first_letter.s, last_letter.s, old_first_letter.s, append_number.s, c_count.i, down_folder.s, found.b, whd_out_folder.s
+  Protected first_letter.s, last_letter.s, old_first_letter.s, append_number.s, c_count.i, down_folder.s, found.b, whd_out_folder.s, old_title.s
   
   Protected level
   
   NewList Cat_List.Sort_Struct()
   NewList Sort_List.Sort_Struct()
   NewList Temp_List.Temp_Struct()
+  
+  old_title=GetWindowTitle(#DOWNLOAD_WINDOW)
+  SetWindowTitle(#DOWNLOAD_WINDOW,"Adding entries. Please wait...")
   
   Pause_Gadget(#DOWNLOAD_LIST)
   
@@ -3853,13 +4182,13 @@ Procedure Draw_Preview()
     If found=#False : RemoveGadgetItem(#DOWNLOAD_LIST,CountGadgetItems(#DOWNLOAD_LIST)-1) : EndIf
     found=#False
   EndIf
-  
-  ;TreeExpandAllItems(#DOWNLOAD_LIST)
-  
+    
   FreeList(Sort_List())
   FreeList(Cat_List())
   
   Resume_Gadget(#DOWNLOAD_LIST)
+  
+  SetWindowTitle(#DOWNLOAD_WINDOW,old_title)
   
 EndProcedure
 
@@ -3867,19 +4196,21 @@ Procedure.b Download_Preview()
   
   Protected oldgadgetlist.l, proc_return.b
   
-  If OpenWindow(#DOWNLOAD_WINDOW,0,0,300,470,"FTP Download ("+Str(ListSize(Down_List()))+" Files)",#PB_Window_Tool|#PB_Window_WindowCentered,WindowID(#MAIN_WINDOW))
+  If OpenWindow(#DOWNLOAD_WINDOW,0,0,300,470,"File Download ("+Str(ListSize(Down_List()))+" Files)",#PB_Window_Tool|#PB_Window_WindowCentered,WindowID(#MAIN_WINDOW))
     
     Pause_Window(#DOWNLOAD_WINDOW)
     
     oldgadgetlist=UseGadgetList(WindowID(#DOWNLOAD_WINDOW))
     
     TreeGadget(#DOWNLOAD_LIST,0,0,300,400)
-    CheckBoxGadget(#DOWNLOAD_A500MINI,35,402,230,20," 255 Files Per Folder (For A500 Mini)",#PB_CheckBox_Center)
-    ButtonGadget(#DOWNLOAD_YES,5,425,140,40,"Start Download")
-    ButtonGadget(#DOWNLOAD_NO,155,425,140,40,"Cancel")
+    CheckBoxGadget(#DOWNLOAD_A500MINI,5,402,200,30,"255 Files Per Folder (A500 Mini)")
+    CheckBoxGadget(#DOWNLOAD_EXPAND,210,402 ,95,30,"Expand Tree")
+    ButtonGadget(#DOWNLOAD_YES,5,435,95,30,"Start")
+    ButtonGadget(#DOWNLOAD_NO,105,435,95,30,"Cancel")
+    ButtonGadget(#DOWNLOAD_SAVE,205,435,90,30,"Save Text")
     
     SetGadgetState(#DOWNLOAD_A500MINI,A500Mini)
-    
+       
     A500Mini=#False
     SetGadgetState(#DOWNLOAD_A500MINI,A500Mini)
     
@@ -3902,6 +4233,18 @@ Procedure.b Download_Preview()
               A500Mini=GetGadgetState(#DOWNLOAD_A500MINI)
               Draw_Preview()
               
+            Case #DOWNLOAD_EXPAND
+              If GetGadgetState(#DOWNLOAD_EXPAND)=#PB_Checkbox_Checked
+                Pause_Gadget(#DOWNLOAD_LIST)
+                TreeExpandAllItems(#DOWNLOAD_LIST)
+                Resume_Gadget(#DOWNLOAD_LIST)
+              EndIf
+              If GetGadgetState(#DOWNLOAD_EXPAND)=#PB_Checkbox_Unchecked
+                Pause_Gadget(#DOWNLOAD_LIST)
+                TreeCollapseAllItems(#DOWNLOAD_LIST)
+                Resume_Gadget(#DOWNLOAD_LIST)
+              EndIf
+
             Case #DOWNLOAD_YES
               proc_return=#True
               Break
@@ -3909,6 +4252,23 @@ Procedure.b Download_Preview()
             Case #DOWNLOAD_NO
               proc_return=#False
               Break
+              
+            Case #DOWNLOAD_SAVE
+              path=SaveFileRequester("Save File","","*.txt",0)
+              If Not FindString(path,".txt") : path+".txt" : EndIf
+              If path<>""
+                If CreateFile(#FILE,path,#PB_Ascii)
+                  WriteStringN(#FILE,"Files downloaded...")
+                  WriteStringN(#FILE,"===================")
+                  WriteStringN(#FILE,"")
+                  ForEach Down_List()
+                    WriteStringN(#FILE,Down_List()\Down_Name)
+                  Next
+                  CloseFile(#FILE)
+                Else
+                  MessageRequester("Error","Cannot create file.",#PB_MessageRequester_Error|#PB_MessageRequester_Ok)
+                EndIf
+              EndIf
               
           EndSelect
       EndSelect         
@@ -3927,7 +4287,7 @@ EndProcedure
 
 Procedure Download_HTTP()
   
-  Protected Keypressed$, Down_Path.s
+  Protected Keypressed$, Down_Path.s, error_log.s, f_size.i
   
   ClearList(Down_List())
   
@@ -3946,7 +4306,7 @@ Procedure Download_HTTP()
       PrintN("")
       
       ForEach Down_List() 
-        
+               
         If FileSize(WHD_Folder)<>-2 : CreateDirectory(WHD_Folder) : EndIf
         
         If FileSize(WHD_Folder+Down_List()\Down_SubFolder_1)<>-2 : CreateDirectory(WHD_Folder+Down_List()\Down_SubFolder_1) : EndIf
@@ -3971,9 +4331,28 @@ Procedure Download_HTTP()
         EndIf
         
         Down_Path+Down_List()\Down_Name
-        
+                
         If ReceiveHTTPFile(Down_List()\Down_HTTP_Folder,Down_Path)  
-          PrintN("Downloaded (" + Str(ListIndex(Down_List())+1) + " of " + Str(ListSize(Down_List())) + ") - " + Down_List()\Down_Name + " (" + Str(FileSize(Down_Path)) + " bytes)")  
+          
+          f_size=FileSize(Down_Path)
+          
+          If f_size<>Down_List()\Down_Size 
+            error_log+"Size Error : "+Down_Path
+            PrintNCol("Size Error : " + Down_List()\Down_Name + " - File Removed!",4,0)
+            Continue
+          EndIf
+          
+          PrintN("Downloaded (" + Str(ListIndex(Down_List())+1) + " of " + Str(ListSize(Down_List())) + ") - " + Down_List()\Down_Name + " (" + Str(f_size) + " bytes)")  
+          SelectElement(Game_List(),Down_List()\Down_Index)
+          Game_List()\File_CRC=FileFingerprint(Down_Path,#PB_Cipher_CRC32)
+          Game_List()\File_Archive_CRC=Game_List()\File_CRC
+          Game_List()\File_Available=#True
+          Game_List()\File_Size=f_size
+          AddElement(File_List_Size())
+          File_List_Size()\R_File_Name=Down_Path
+          File_List_Size()\R_File_File=GetFilePart(Down_Path)
+          File_List_Size()\R_File_CRC32=Game_List()\File_CRC
+          File_List_Size()\R_File_Size=f_size
         Else
           PrintNCol("*** Error ***",4,0)
         EndIf 
@@ -3992,13 +4371,19 @@ Procedure Download_HTTP()
       PrintN("")
       PrintNCol("Connection Closed.",14,0)
       PrintN("")
-      PrintNCol("Please donate to the Turran FTP. The link is on the 'About' window.",2,0)
+      PrintNCol("Please donate to the Turran Server. The link is on the 'About' window.",2,0)
       Delay(3000)   
       
       CloseConsole()
       
     EndIf  
     
+    If error_log<>""
+      CreateFile(#FILE,Home_Path+"HTTP_Log.txt")
+      WriteString(#FILE,error_log)
+      CloseFile(#FIle)
+    EndIf
+        
   Else
     
     MessageRequester("Information","Nothing to download!",#PB_MessageRequester_Ok|#PB_MessageRequester_Info)
@@ -4007,12 +4392,16 @@ Procedure Download_HTTP()
   
   SetCurrentDirectory(Home_Path)
   
+  If ListSize(Down_List())>0 : Update_Files(0) : EndIf
+  
+  ClearList(Down_List())
+   
 EndProcedure
 
 Procedure Download_FTP()
   
   Protected log_file.i
-  Protected ftp_log.s=""
+  Protected ftp_log.s="", f_size.i
   Protected log_path.s=Home_Path+"ftp.log"
   Protected conHandle.l, hInternet.l, hConnect.l
   Protected cancel.b, Down_Path.s
@@ -4078,12 +4467,23 @@ Procedure Download_FTP()
           Down_Path+Down_List()\Down_Name
           
           If FTPDownload(hConnect,Down_List()\Down_Name,Down_Path)  
-            If FileSize(Down_Path)>0
+            f_size=FileSize(Down_Path)
+            If f_size=Down_List()\Down_Size
               PrintN("Downloading ("+Str(ListIndex(Down_List())+1)+" of "+Str(ListSize(Down_List()))+") - "+Down_List()\Down_Name+" ("+Str(FileSize(Down_Path))+" bytes)")
               ftp_log+"Downloaded - " + Down_List()\Down_Name+" ("+Str(FileSize(Down_Path))+" bytes)"+#CRLF$    
+              SelectElement(Game_List(),Down_List()\Down_Index)
+              Game_List()\File_CRC=FileFingerprint(Down_Path,#PB_Cipher_CRC32)
+              Game_List()\File_Archive_CRC=Game_List()\File_CRC
+              Game_List()\File_Available=#True
+              Game_List()\File_Size=f_size
+              AddElement(File_List_Size())
+              File_List_Size()\R_File_Name=Down_Path
+              File_List_Size()\R_File_File=GetFilePart(Down_Path)
+              File_List_Size()\R_File_CRC32=Game_List()\File_CRC
+              File_List_Size()\R_File_Size=f_size
             Else
-              ftp_log+"No data received for file "+Down_List()\Down_Name+#CRLF$
-              PrintNCol("No data received for file " + Down_List()\Down_Name,4,0)
+              ftp_log+"Wrong File Size : "+Down_List()\Down_Name+#CRLF$
+              PrintNCol("Wrong File Size : " + Down_List()\Down_Name,4,0)
               DeleteFile(Down_Path)
             EndIf
           Else
@@ -4119,15 +4519,15 @@ Procedure Download_FTP()
         PrintNCol("FTP connection closed.",14,0)
         ftp_log+"FTP connection closed."+#CRLF$
         PrintN("")
-        PrintNCol("Please donate to the Turran FTP. The link is on the 'About' window.",2,0)
-        ftp_log+"Please donate to the Turran FTP.."+#CRLF$
+        PrintNCol("Please donate to the Turran Server. The link is on the 'About' window.",2,0)
+        ftp_log+"Please donate to the Turran Server.."+#CRLF$
         Delay(3000)
         CloseConsole()
         
       Else
         
-        PrintNCol("Error: Cannot connect to FTP.",4,0)
-        ftp_log+"Error: Cannot connect to FTP."+#CRLF$
+        PrintNCol("Error: Cannot connect to FTP Server.",4,0)
+        ftp_log+"Error: Cannot connect to FTP Server."+#CRLF$
         Delay(3000)
         CloseConsole()
         
@@ -4137,7 +4537,7 @@ Procedure Download_FTP()
     
     Proc_Exit:
     
-    If CreateFile(log_file, Home_Path+"ftp.log")
+    If CreateFile(log_file, Home_Path+"FTP.log")
       WriteString(log_file, ftp_log)
       CloseFile(log_file)  
     EndIf
@@ -4150,201 +4550,9 @@ Procedure Download_FTP()
   
   SetCurrentDirectory(Home_Path)
   
-EndProcedure
-
-Procedure Update_Files()
+  If ListSize(Down_List())>0 : Update_Files(0) : EndIf
   
-  Protected oldgadgetlist.i, base_count.i, update.b
-  
-  Protected NewMap Delete_Map.i()
-  Protected NewMap Archive_Map.s()
-  Protected NewList LHA_Files.s()
-  Protected NewList LZX_Files.s()
-  Protected NewList Own_Files.Own_Data()
-  Protected NewList Zero_Files.s()
-  Protected NewList File_List_CRC.File_Data()
-  
-  update=#False
-  
-  ClearList(Delete_List())
-  
-  ForEach Filtered_List()
-    SelectElement(Game_List(),Filtered_List())
-    Archive_Map(Game_List()\File_Name)=Game_List()\File_CRC
-  Next
-  
-  ClearList(File_List())
-  List_Files_Recursive_Size(WHD_Folder,File_List_CRC(),"") 
-  
-  ForEach File_List_CRC()
-    If Not FindMapElement(Archive_Map(),GetFilePart(File_List_CRC()\R_File_Name))
-      If GetExtensionPart(File_List_CRC()\R_File_Name)="lha" Or GetExtensionPart(File_List_CRC()\R_File_Name)="lzx"
-        AddElement(Delete_List())
-        Delete_List()=File_List_CRC()\R_File_Name
-      EndIf
-    EndIf
-    If FindMapElement(Archive_Map(),GetFilePart(File_List_CRC()\R_File_Name))
-      If GetExtensionPart(File_List_CRC()\R_File_Name)="lha" Or GetExtensionPart(File_List_CRC()\R_File_Name)="lzx"
-        If File_List_CRC()\R_File_CRC32 <> Archive_Map()
-          AddElement(Delete_List())
-          Delete_List()=File_List_CRC()\R_File_Name
-        EndIf        
-      EndIf
-    EndIf
-  Next
-  
-  If ListSize(Delete_List())>0
-    
-    OpenWindow(#DELETE_WINDOW,0,0,385,400,"Remove Un-Needed Files", #PB_Window_Tool|#PB_Window_WindowCentered,WindowID(#MAIN_WINDOW))
-    
-    oldgadgetlist=UseGadgetList(WindowID(#DELETE_WINDOW))
-    
-    DisableWindow(#MAIN_WINDOW,#True)
-    
-    Pause_Window(#DELETE_WINDOW)
-    
-    TreeGadget(#DELETE_LIST,0,0,385,360)
-    ButtonGadget(#DELETE_DEL_BUTTON,5,365,90,30,"Delete")
-    ButtonGadget(#DELETE_BACKUP_BUTTON,100,365,90,30,"Back Up")
-    ButtonGadget(#DELETE_OWN_BUTTON,195,365,90,30,"Own Files")
-    ButtonGadget(#DELETE_CANCEL_BUTTON,290,365,90,30,"Cancel")
-    
-    Pause_Gadget(#DELETE_LIST)
-    
-    If ListSize(Delete_List())>0
-      ForEach Delete_List()
-        AddGadgetItem(#DELETE_LIST,-1,Delete_List(),0,0)
-        AddGadgetItem(#DELETE_LIST,-1,"No longer needed!",0,1)
-        SetGadgetItemColor(#DELETE_LIST,-1,#PB_Gadget_FrontColor,#Red,1)
-      Next
-    EndIf
-    
-    If ListSize(Zero_Files())>0
-      ForEach Zero_Files()
-        AddGadgetItem(#DELETE_LIST,-1,Zero_Files(),0,0)
-        AddGadgetItem(#DELETE_LIST,-1,"0kb File!",0,1)
-        SetGadgetItemColor(#DELETE_LIST,-1,#PB_Gadget_FrontColor,#Red,1)
-      Next
-    EndIf
-    
-    MergeLists(Zero_Files(),Delete_List())
-    
-    Resume_Gadget(#DELETE_LIST)
-    
-    If ListSize(Delete_List())=0
-      DisableGadget(#DELETE_BACKUP_BUTTON,#True)
-      DisableGadget(#DELETE_DEL_BUTTON,#True)
-    EndIf
-    
-    TreeExpandAllItems(#DELETE_LIST)
-    
-    SetWindowTitle(#DELETE_WINDOW,"Remove Un-Needed Files ("+Str(ListSize(Delete_List()))+" files)")
-    
-    Resume_Window(#DELETE_WINDOW)
-    
-    Repeat
-      
-      Event=WaitWindowEvent()
-      Gadget=EventGadget()
-      
-      Select Gadget
-          
-        Case #DELETE_CANCEL_BUTTON : Break
-          
-        Case #DELETE_DEL_BUTTON
-          If ListSize(Delete_List())>0
-            If MessageRequester("Warning","Delete listed files?",#PB_MessageRequester_Warning|#PB_MessageRequester_YesNo)=#PB_MessageRequester_Yes
-              ForEach Delete_List() 
-                DeleteFile(Delete_List())
-              Next
-              Break
-            EndIf         
-          Else
-            MessageRequester("Information","Nothing to delete.",#PB_MessageRequester_Info|#PB_MessageRequester_Ok)
-          EndIf
-          
-        Case #DELETE_BACKUP_BUTTON
-          If ListSize(Delete_List())>0
-            If MessageRequester("Warning","Back up listed files?",#PB_MessageRequester_Warning|#PB_MessageRequester_YesNo)=#PB_MessageRequester_Yes
-              ForEach Delete_List()
-                Count=CountString(Delete_List(),Chr(92))
-                Path=Home_Path+"Backup"
-                CreateDirectory(Path)
-                CopyFile(Delete_List(),Path+Chr(92)+GetFilePart(Delete_List()))
-                DeleteFile(Delete_List())
-              Next
-              Break
-            EndIf
-          Else
-            MessageRequester("Information","Nothing to move.",#PB_MessageRequester_Info|#PB_MessageRequester_Ok)
-          EndIf
-          
-        Case #DELETE_OWN_BUTTON
-          ClearList(Delete_List())
-          Path=PathRequester("Select a folder to scan.",Home_Path)
-          If Path<>""
-            List_Files_Recursive(Path,LHA_Files(),"*.*")
-            ForEach LHA_Files()
-              If GetExtensionPart(LHA_Files())="lha" Or GetExtensionPart(LHA_Files())="lzx"
-                AddElement(Own_Files())
-                Own_Files()\own_file=GetFilePart(LHA_Files())
-                Own_Files()\own_folder=GetPathPart(LHA_Files())
-              EndIf
-            Next
-            FreeList(LHA_Files())
-            FreeList(LZX_Files())
-            ForEach Game_List() ; Create a map of all the filenames in the database
-              Archive_Map(Game_List()\File_Name)=""
-            Next
-            ForEach Own_Files() ; Compare the filenames in the own list and add any to the delete list
-              If Not FindMapElement(Archive_Map(),Own_Files()\own_file)
-                AddElement(Delete_List())
-                Delete_List()=Own_Files()\own_folder+Own_Files()\own_file
-              EndIf
-            Next
-            ClearGadgetItems(#DELETE_LIST)
-            If ListSize(Delete_List())>0
-              ForEach Delete_List()
-                AddGadgetItem(#DELETE_LIST,-1,Delete_List(),0,0)
-                AddGadgetItem(#DELETE_LIST,-1,"No longer needed!",0,1)
-                SetGadgetItemColor(#DELETE_LIST,-1,#PB_Gadget_FrontColor,#Red,1)
-              Next
-              DisableGadget(#DELETE_BACKUP_BUTTON,#False)
-              DisableGadget(#DELETE_DEL_BUTTON,#False) 
-              TreeExpandAllItems(#DELETE_LIST)
-            Else
-              MessageRequester("Information","Nothing to delete.",#PB_MessageRequester_Info|#PB_MessageRequester_Ok)
-            EndIf
-            SetWindowTitle(#DELETE_WINDOW,"Remove Un-Needed Files ("+Str(ListSize(Delete_List()))+" files)")
-          EndIf
-          
-      EndSelect
-      
-    ForEver
-    
-    UseGadgetList(oldgadgetlist)
-    
-    CloseWindow(#DELETE_WINDOW)
-    
-    update=#True
-    
-  EndIf
-  
-  FreeList(Own_Files())
-  FreeList(Zero_Files())
-  FreeMap(Delete_Map())
-  FreeMap(Archive_Map())
-  ClearList(Delete_List())
-  
-  DisableWindow(#MAIN_WINDOW,#False)
-  
-  For count = 1 To 3
-    ForEach Directory_List()
-      DeleteDirectorySafely(Directory_List())
-    Next
-  Next
-  
-  ProcedureReturn update
+  ClearList(Down_List())
   
 EndProcedure
 
@@ -4353,7 +4561,10 @@ Procedure Scrape_Data()
   ForEach Game_List()  
     Game_List()\File_Amiga=#True
     Game_List()\File_Ignore=#False
-    If Game_List()\File_Type="Beta" : Game_List()\File_Type="Game" : Game_List()\File_BETA=#True : EndIf  
+    If Game_List()\File_Type="Beta"
+      If Game_List()\File_Beta_Type="Game" : Game_List()\File_Type="Game" : Game_List()\File_BETA=#True : EndIf  
+      If Game_List()\File_Beta_Type="Demo" : Game_List()\File_Type="Demo" : Game_List()\File_BETA=#True : EndIf  
+    EndIf
     If FindString(LCase(Game_List()\File_Name),"arcadia.") : Game_List()\File_Arcadia=#True : Game_List()\File_Amiga=#False : EndIf
     If FindString(Game_List()\File_Name,"AGA") : Game_List()\File_AGA=#True : EndIf
     If FindString(Game_List()\File_Name,"_CD") And Not FindString(Game_List()\File_Name,"CD32") And Not FindString(Game_List()\File_Name,"CDTV")
@@ -4427,6 +4638,8 @@ EndProcedure
 
 Procedure Draw_List()
   
+  Protected Error.s
+  
   Pause_Gadget(#MAIN_LIST)
   
   ClearGadgetItems(#MAIN_LIST)
@@ -4436,8 +4649,13 @@ Procedure Draw_List()
   ForEach Filtered_List()
     Count=ListIndex(Filtered_List())
     SelectElement(Game_List(),Filtered_List())
-    AddGadgetItem(#MAIN_LIST,-1,Game_List()\File_Name)
-    If Game_List()\File_Available=#True : SetGadgetItemColor(#MAIN_LIST,Count,#PB_Gadget_FrontColor,$00008800) : EndIf 
+    If Game_List()\File_Available<>#True : error=" (Missing)" : EndIf
+    If Game_List()\File_Available=#True And Game_List()\File_Archive_CRC<>Game_List()\File_CRC : error=" (Wrong CRC)" : EndIf 
+    AddGadgetItem(#MAIN_LIST,-1,Game_List()\File_Name+error) : error=""
+    If Game_List()\File_Available=#True : SetGadgetItemColor(#MAIN_LIST,Count,#PB_Gadget_FrontColor,$00008800) : EndIf
+    If Game_List()\File_Available<>#True : SetGadgetItemColor(#MAIN_LIST,Count,#PB_Gadget_FrontColor,#Red) : EndIf
+    If Game_List()\File_Available=#True And Game_List()\File_Archive_CRC<>Game_List()\File_CRC : SetGadgetItemColor(#MAIN_LIST,Count,#PB_Gadget_FrontColor,#Blue) : EndIf 
+
     If Mod(Count,2)=0 : SetGadgetItemColor(#MAIN_LIST,count,#PB_Gadget_BackColor,$eeeeee) : EndIf
   Next
   
@@ -4464,11 +4682,54 @@ EndProcedure
 
 ;- ############### Window Procedures
 
+Procedure Donate_Window()
+  
+  Protected d_event,d_gadget,d_type,oldgadgetlist
+  
+  If OpenWindow(#DONATE_WINDOW,0,0,160,80,"Donate",#PB_Window_Tool|#PB_Window_SystemMenu|#PB_Window_WindowCentered,WindowID(#MAIN_WINDOW))
+    oldgadgetlist=UseGadgetList(WindowID(#DONATE_WINDOW))
+    ButtonGadget(#DONATE_BUTTON_A,0,0,160,40,"Donate to Turran.")
+    ButtonGadget(#DONATE_BUTTON_B,0,40,160,40,"Donate me a coffee.")
+    
+    Repeat
+      
+      d_event=WaitWindowEvent()
+      d_gadget=EventGadget()
+      d_type=EventType()
+      
+      Select d_gadget
+          
+        Case #DONATE_BUTTON_A
+          path="https://www.paypal.com/donate/?cmd=_donations&business=eab@grandis.nu&lc=US&item_name=Donation+to+EAB+FTP&no_note=0&cn=&curency_code=USD&bn=PP-DonationsBF:btn_donateCC_LG.gif:NonHosted"
+          RunProgram(path,"","")
+          UseGadgetList(oldgadgetlist)
+          Break
+        Case #DONATE_BUTTON_B
+          path="https://www.paypal.com/paypalme/paulvinceags2"
+          RunProgram(path,"","")
+          UseGadgetList(oldgadgetlist)
+          Break
+          
+      EndSelect
+      
+      If EventWindow()=#DONATE_WINDOW And d_event=#PB_Event_CloseWindow
+        Break
+      EndIf 
+      
+    ForEver 
+    
+    UseGadgetList(oldgadgetlist)
+    CloseWindow(#DONATE_WINDOW)
+    
+  EndIf
+  
+EndProcedure
+
 Procedure About_Window()
   
   Protected oldgadgetlist.i, output$
   
-  OpenWindow(#ABOUT_WINDOW,0,0,340,360,"About", #PB_Window_SystemMenu|#PB_Window_WindowCentered,WindowID(#MAIN_WINDOW))
+  OpenWindow(#ABOUT_WINDOW,0,0,340,270,"About", #PB_Window_Tool|#PB_Window_SystemMenu|#PB_Window_WindowCentered,WindowID(#MAIN_WINDOW))
   
   SetWindowColor(#ABOUT_WINDOW,#White)
   
@@ -4493,34 +4754,17 @@ Procedure About_Window()
   output$+"   ----------------------------------------------"+#CRLF$
   
   output$+#CRLF$
-  output$+"If you use this tool, please consider donating towards the running costs of the Turran file server or my coffee fund. I'm sure that Turran will be most appreciative, I know that I will! The links are below..."+#CRLF$ 
+  output$+"If you use this tool, please consider donating towards the running costs of the Turran file server or my coffee fund. I'm sure that Turran will be most appreciative and I do love a latte!"+#CRLF$ 
   
   StringGadget(#ABOUT_STRING,0,0,340,270,output$, #PB_String_ReadOnly | #ES_MULTILINE | #ESB_DISABLE_LEFT|#ESB_DISABLE_RIGHT)
   SetWindowLongPtr_(GadgetID(#ABOUT_STRING),#GWL_EXSTYLE,0)
   SetWindowPos_(GadgetID(#ABOUT_STRING),0,0,0,0,0,#SWP_NOMOVE | #SWP_NOSIZE | #SWP_FRAMECHANGED)
   SetGadgetFont(#ABOUT_STRING,FontID(#HELP_FONT))
-  HyperLinkGadget(#ABOUT_LINK,45,280,250,25,"Please donate here to support the Turran server.",#Red,#PB_HyperLink_Underline)
-  SetGadgetColor(#ABOUT_STRING,#PB_Gadget_BackColor,#White)
-  SetGadgetColor(#ABOUT_LINK,#PB_Gadget_FrontColor,#Blue)
-  SetGadgetColor(#ABOUT_LINK,#PB_Gadget_BackColor,#White)
-  
-  HyperLinkGadget(#COFFEE_BUTTON,7,315,330,25,"If you want to buy me a coffee, please use this PayPal.me link.",#Red,#PB_HyperLink_Underline)
-
-  SetGadgetColor(#COFFEE_BUTTON,#PB_Gadget_FrontColor,#Blue)
-  SetGadgetColor(#COFFEE_BUTTON,#PB_Gadget_BackColor,#White)
   
   Resume_Window(#ABOUT_WINDOW)
   
   Repeat
     Event=WaitWindowEvent()
-    If EventGadget()=#ABOUT_LINK And EventType()=#PB_EventType_LeftClick
-      path="https://www.paypal.com/donate/?cmd=_donations&business=eab@grandis.nu&lc=US&item_name=Donation+to+EAB+FTP&no_note=0&cn=&curency_code=USD&bn=PP-DonationsBF:btn_donateCC_LG.gif:NonHosted"
-      RunProgram(path,"","")
-    EndIf
-  If EventGadget()=#COFFEE_BUTTON And EventType()=#PB_EventType_LeftClick
-      path="https://www.paypal.com/paypalme/paulvinceags2"
-      RunProgram(path,"","")
-    EndIf
     If EventWindow()=#ABOUT_WINDOW And Event()=#PB_Event_CloseWindow
       UseGadgetList(oldgadgetlist)
       CloseWindow(#ABOUT_WINDOW)
@@ -4538,7 +4782,7 @@ Procedure Help_Window()
   
   Protected oldgadgetlist.i, output$
   
-  OpenWindow(#HELP_WINDOW,0,0,550,600,"Help", #PB_Window_SystemMenu|#PB_Window_WindowCentered,WindowID(#MAIN_WINDOW))
+  OpenWindow(#HELP_WINDOW,0,0,550,600,"Help", #PB_Window_Tool|#PB_Window_SystemMenu|#PB_Window_WindowCentered,WindowID(#MAIN_WINDOW))
   
   oldgadgetlist=UseGadgetList(WindowID(#HELP_WINDOW))
   
@@ -4592,6 +4836,8 @@ Procedure Help_Window()
   output$+"As you change the filters, the file list will adapt to your selection. "
   output$+"The entries in the list are selectable and the status bar at the bottom of the window will show any data available. "
   output$+"If the entry is available in the relevant download folder, the entry will be highlighted in green. "
+  output$+"If the entry is missing from the relevant download folder, the entry will be highlighted in red. "
+  output$+"If the entry has a different checksum to the available FTP file, the entry will be highlighted in blue. "
   output$+"Any software highlighted in green will not be downloaded when you click the download button."+#CRLF$
   output$+#CRLF$
   output$+"If you delete any files in the download folder while the program is running, press 'F5' and the program will recheck the available files and refresh the game list to reflect any changes."+#CRLF$
@@ -4726,6 +4972,12 @@ Procedure Help_Window()
   output$+"                 your collection. There is a section below that goes"+#CRLF$
   output$+"                 into more detail."+#CRLF$
   output$+#CRLF$
+  output$+"                 Note: This process now checks the CRC32 checksum for each"+#CRLF$
+  output$+"                 archive and will remove any files that don't match."+#CRLF$
+  output$+"                 This will include any archives that you may have"+#CRLF$
+  output$+"                 modified yourself. You will need to remove these"+#CRLF$
+  output$+"                 files if you want to keep them."+#CRLF$
+  output$+#CRLF$
   output$+"  Clear Data   - Clears all loaded data. Filter & server settings will remain."+#CRLF$
   output$+#CRLF$
   output$+"  Make Folder  - Creates a new folder of games from your downloads"+#CRLF$
@@ -4802,6 +5054,11 @@ Procedure Help_Window()
   output$+"Cleaning Your WHDLoad Set"+#CRLF$
   output$+"-------------------------"+#CRLF$ 
   output$+"This process will remove any unneeded archives from your WHDLoad set."+#CRLF$ 
+  output$+#CRLF$
+  output$+"Note: This process now checks for the CRC32 in each archive and will"+#CRLF$ 
+  output$+"remove any files that don't match. This will include any archives that"+#CRLF$ 
+  output$+"you may have modified yourself. You will need to remove these files if"+#CRLF$
+  output$+"if you want to keep them."+#CRLF$
   output$+#CRLF$
   output$+"  1. Press the 'Load Data' button to load the main database."+#CRLF$
   output$+"  2. Set the 'Parent' folder to the folder you have your WHDLoad files"+#CRLF$
@@ -4900,9 +5157,9 @@ Procedure Main_Window()
   AddStatusBarField(DpiX(100))
   AddStatusBarField(DpiX(120))
   AddStatusBarField(DpiX(100))
-  AddStatusBarField(DpiX(110))
-  AddStatusBarField(DpiX(110))
-  AddStatusBarField(DpiX(114))
+  AddStatusBarField(DpiX(80))
+  AddStatusBarField(DpiX(100))
+  AddStatusBarField(DpiX(154))
   
   Pause_Window(#MAIN_WINDOW)
   
@@ -5126,6 +5383,7 @@ EndProcedure
 ;- ############### Program Startup
 
 UseZipPacker()
+UseCRC32Fingerprint()
 
 LoadFont(#HELP_FONT,"Consolas",9,#PB_Font_HighQuality)
 LoadFont(#MAIN_FONT,GetDefaultFontName(),9,#PB_Font_HighQuality)
@@ -5142,8 +5400,6 @@ If FileSize(Home_Path+Prefs_Name)=-1
 Else
   Load_Prefs(Home_Path+Prefs_Name)
 EndIf
-
-Debug FTP_Pass
 
 Update_Gadgets()
 Set_Filter_Gadgets()
@@ -5170,10 +5426,11 @@ Repeat
     Case #WM_KEYDOWN
       If CountGadgetItems(#MAIN_LIST)>0
         If EventwParam() = #VK_F5
-          ClearList(File_List())
-          List_Files_Recursive(WHD_Folder,File_List(),"") 
-          Filter_List()
-          Draw_List()
+          If ListSize(Game_List())>0
+            Rescan_Files()
+            Scrape_Data()
+            Draw_List()
+          EndIf
         EndIf
       EndIf
       
@@ -5184,6 +5441,145 @@ Repeat
   EndSelect
   
   Select Gadget
+
+    Case #LOAD_PREFS_BUTTON
+      
+      If ListSize(Game_List())>0
+        If MessageRequester("Warning", "Clear all data?", #PB_MessageRequester_YesNo|#PB_MessageRequester_Warning)=#PB_MessageRequester_Yes
+          If ListSize(Game_List())>0 : ClearList(Game_List()) : EndIf
+          If ListSize(Delete_List())>0 : ClearList(Delete_List()) : EndIf
+          If ListSize(File_List())>0 : ClearList(File_List()) : EndIf
+          If ListSize(File_List_Size())>0 : ClearList(File_List()) : EndIf
+          If ListSize(Down_List())>0 : ClearList(Down_List()) : EndIf
+          If ListSize(Filtered_List())>0 : ClearList(Filtered_List()) : EndIf
+          If ListSize(Directory_List())>0 : ClearList(Directory_List()) : EndIf
+          Pause_Window(#MAIN_WINDOW)
+          ClearGadgetItems(#MAIN_LIST)
+          Update_Gadgets()
+          DisableGadget(#CLEAR_EDITS_BUTTON,#True)
+          Disable_Gadgets(#True)
+          Set_List_Gadgets(#True)
+          Update_Title()
+          Update_Statusbar()
+          Resume_Window(#MAIN_WINDOW)
+        EndIf   
+      EndIf
+      
+      Path=OpenFileRequester("Load Prefs",Home_Path,"Prefs File (*.prefs)|*.prefs",0)
+      
+      If Path<>""
+        Load_Prefs(Path)
+        SetGadgetText(#FTP_USER_STRING,FTP_User)
+        SetGadgetText(#FTP_PASS_STRING,FTP_Pass)
+        SetGadgetText(#FTP_SERVER_STRING,FTP_Server)
+        SetGadgetText(#FTP_PORT_STRING,Str(FTP_Port))
+        SetGadgetText(#FTP_FOLDER_STRING,FTP_Folder)
+        SetGadgetText(#HTTP_SERVER_STRING,HTTP_Server)
+        SetGadgetText(#WHD_MAIN_STRING,WHD_Folder)
+        SetGadgetText(#WHD_GAME_STRING,WHD_Game_Folder)
+        SetGadgetText(#WHD_DEMO_STRING,WHD_Demo_Folder)
+        SetGadgetText(#WHD_BETA_STRING,WHD_Beta_Folder)
+        SetGadgetText(#WHD_MAGS_STRING,WHD_Mags_Folder)
+        SetGadgetState(#WHD_SORT_COMBO,Sort_Type)
+        SetGadgetState(#WHD_LANGUAGE_COMBO,Split_Languages)
+        
+        If Sort_Type=2
+          DisableGadget(#WHD_LANGUAGE_COMBO,#False)
+        Else
+          Split_Languages=0
+          SetGadgetState(#WHD_LANGUAGE_COMBO,0)
+          DisableGadget(#WHD_LANGUAGE_COMBO,#True)
+        EndIf
+        Update_Gadgets() 
+        Set_Filter_Gadgets()
+        
+        If ListSize(Game_List())=0       
+          If MessageRequester("Load", "Load dat files?",#PB_MessageRequester_YesNo|#PB_MessageRequester_Info)=#PB_MessageRequester_Yes
+            If Download_Type=0
+              Scan_FTP()
+            Else
+              Scan_HTTP()
+            EndIf
+          EndIf 
+        EndIf 
+        
+        If ListSize(Game_List())>0
+          Rescan_Files()
+          Scrape_Data()
+          Disable_Gadgets(#False)
+          Draw_List()
+        EndIf
+        
+      EndIf
+                
+    Case #SCAN_BUTTON
+      If ListSize(Game_List())>0
+        Count=MessageRequester("Warning","Clear the database and reload?",#PB_MessageRequester_Warning|#PB_MessageRequester_YesNo)
+        
+        If count=#PB_MessageRequester_Yes
+          ClearList(Game_List())
+          ClearGadgetItems(#MAIN_LIST)
+          If Download_Type=0
+            Scan_FTP()
+          Else
+            Scan_HTTP()
+          EndIf
+          If ListSize(Game_List())>0
+            Rescan_Files()
+            Scrape_Data()
+            Disable_Gadgets(#False)
+            Draw_List()
+          EndIf
+        EndIf
+        
+      Else
+        
+        If Download_Type=0
+          Scan_FTP()
+        Else
+          Scan_HTTP()
+        EndIf
+        If ListSize(Game_List())>0
+          Rescan_Files()
+          Scrape_Data()
+          Disable_Gadgets(#False)
+          Draw_List()
+        EndIf
+        
+      EndIf
+      
+    Case #DOWNLOAD_BUTTON
+      If Download_Type=0
+        Download_FTP()
+      Else
+        Download_HTTP()
+      EndIf
+      Scrape_Data()
+      Draw_List()
+      
+    Case #CLEAR_DATA_BUTTON
+      If MessageRequester("Warning", "Clear all data?", #PB_MessageRequester_YesNo|#PB_MessageRequester_Warning)=#PB_MessageRequester_Yes
+        If ListSize(Game_List())>0 : ClearList(Game_List()) : EndIf
+        If ListSize(Delete_List())>0 : ClearList(Delete_List()) : EndIf
+        If ListSize(File_List())>0 : ClearList(File_List()) : EndIf
+        If ListSize(File_List_Size())>0 : ClearList(File_List()) : EndIf
+        If ListSize(Down_List())>0 : ClearList(Down_List()) : EndIf
+        If ListSize(Filtered_List())>0 : ClearList(Filtered_List()) : EndIf
+        If ListSize(Directory_List())>0 : ClearList(Directory_List()) : EndIf
+        Pause_Window(#MAIN_WINDOW)
+        ClearGadgetItems(#MAIN_LIST)
+        Update_Gadgets()
+        DisableGadget(#CLEAR_EDITS_BUTTON,#True)
+        Disable_Gadgets(#True)
+        Set_List_Gadgets(#True)
+        Update_Title()
+        Update_Statusbar()
+        Resume_Window(#MAIN_WINDOW)
+      EndIf    
+      
+    Case #CLEANUP_BUTTON 
+      Update_Files(1)
+      Draw_List()
       
     Case #MAKE_FOLDER_BUTTON
       Make_Folder()
@@ -5211,10 +5607,7 @@ Repeat
       Update_Genre()
       
     Case #DONATE_BUTTON
-      If  EventType()=#PB_EventType_LeftClick
-        path="https://www.paypal.com/donate/?cmd=_donations&business=eab@grandis.nu&lc=US&item_name=Donation+to+EAB+FTP&no_note=0&cn=&curency_code=USD&bn=PP-DonationsBF:btn_donateCC_LG.gif:NonHosted"
-        RunProgram(path,"","")
-      EndIf
+        Donate_Window()
             
     Case #MAIN_LIST
       If Type=#PB_EventType_Change
@@ -5367,74 +5760,7 @@ Repeat
         Set_Language_Gadgets(Lang_Bool)
         Draw_List()
       EndIf
-      
-    Case #SCAN_BUTTON
-      If ListSize(Game_List())>0
-        Count=MessageRequester("Warning","Clear the database and reload?",#PB_MessageRequester_Warning|#PB_MessageRequester_YesNo)
-        If count=#PB_MessageRequester_Yes
-          ClearList(Game_List())
-          ClearGadgetItems(#MAIN_LIST)
-          If Download_Type=0
-            Scan_FTP()
-          Else
-            Scan_HTTP()
-          EndIf
-          If ListSize(Game_List())>0
-            Scrape_Data()
-            Disable_Gadgets(#False)
-            Draw_List()
-          EndIf
-        EndIf
-      Else
-        If Download_Type=0
-          Scan_FTP()
-        Else
-          Scan_HTTP()
-        EndIf
-        If ListSize(Game_List())>0
-          Scrape_Data()
-          Disable_Gadgets(#False)
-          Draw_List()
-        EndIf
-      EndIf
-      While WindowEvent() : Wend
-      
-    Case #DOWNLOAD_BUTTON
-      If Download_Type=0
-        Download_FTP()
-      Else
-        Download_HTTP()
-      EndIf
-      Update_Files()
-      ClearList(File_List())
-      List_Files_Recursive(WHD_Folder,File_List(),"") 
-      Draw_List()
-      
-    Case #CLEANUP_BUTTON 
-      If Not Update_Files() : MessageRequester("Clean Files","Nothing To Clean!",#PB_MessageRequester_Ok|#PB_MessageRequester_Info) : EndIf
-      ClearList(File_List())
-      List_Files_Recursive(WHD_Folder,File_List(),"") 
-      Draw_List()
-      
-    Case #CLEAR_DATA_BUTTON
-      If MessageRequester("Warning", "Clear all data?", #PB_MessageRequester_YesNo|#PB_MessageRequester_Warning)=#PB_MessageRequester_Yes
-        If ListSize(Game_List())>0 : ClearList(Game_List()) : EndIf
-        If ListSize(Delete_List())>0 : ClearList(Delete_List()) : EndIf
-        If ListSize(File_List())>0 : ClearList(File_List()) : EndIf
-        If ListSize(Down_List())>0 : ClearList(Down_List()) : EndIf
-        If ListSize(Filtered_List())>0 : ClearList(Filtered_List()) : EndIf
-        If ListSize(Directory_List())>0 : ClearList(Directory_List()) : EndIf
-        Pause_Window(#MAIN_WINDOW)
-        ClearGadgetItems(#MAIN_LIST)
-        Update_Gadgets()
-        DisableGadget(#CLEAR_EDITS_BUTTON,#True)
-        Disable_Gadgets(#True)
-        Set_List_Gadgets(#True)
-        Update_Title()
-        Update_Statusbar()
-        Resume_Window(#MAIN_WINDOW)
-      EndIf   
-      
+                  
     Case #RESET_BUTTON
       Set_Filter(#True)
       Draw_List()
@@ -5442,40 +5768,7 @@ Repeat
     Case #CLEAR_BUTTON
       Set_Filter(#False)
       Draw_List()
-      
-    Case #LOAD_PREFS_BUTTON
-      Path=OpenFileRequester("Load Prefs",Home_Path,"Prefs File (*.prefs)|*.prefs",0)
-      If Path<>""
-        Load_Prefs(Path)
-        SetGadgetText(#FTP_USER_STRING,FTP_User)
-        SetGadgetText(#FTP_PASS_STRING,FTP_Pass)
-        SetGadgetText(#FTP_SERVER_STRING,FTP_Server)
-        SetGadgetText(#FTP_PORT_STRING,Str(FTP_Port))
-        SetGadgetText(#FTP_FOLDER_STRING,FTP_Folder)
-        SetGadgetText(#HTTP_SERVER_STRING,HTTP_Server)
-        SetGadgetText(#WHD_MAIN_STRING,WHD_Folder)
-        SetGadgetText(#WHD_GAME_STRING,WHD_Game_Folder)
-        SetGadgetText(#WHD_DEMO_STRING,WHD_Demo_Folder)
-        SetGadgetText(#WHD_BETA_STRING,WHD_Beta_Folder)
-        SetGadgetText(#WHD_MAGS_STRING,WHD_Mags_Folder)
-        SetGadgetState(#WHD_SORT_COMBO,Sort_Type)
-        SetGadgetState(#WHD_LANGUAGE_COMBO,Split_Languages)
-        
-        If Sort_Type=2
-          DisableGadget(#WHD_LANGUAGE_COMBO,#False)
-        Else
-          Split_Languages=0
-          SetGadgetState(#WHD_LANGUAGE_COMBO,0)
-          DisableGadget(#WHD_LANGUAGE_COMBO,#True)
-        EndIf
-        Update_Gadgets()
-        ClearList(File_List())
-        List_Files_Recursive(WHD_Folder,File_List(),"") 
-        Set_Filter_Gadgets()
-        Draw_List()
-        
-      EndIf
-      
+            
     Case #SAVE_PREFS_BUTTON
       Path=OpenFileRequester("Save Prefs",Home_Path,"Prefs File (*.prefs)|*.prefs",0)
       If Path<>""
@@ -5847,27 +6140,27 @@ Repeat
 ForEver 
 
 End
-; IDE Options = PureBasic 6.03 beta 5 LTS (Windows - x64)
-; CursorPosition = 1051
-; FirstLine = 801
-; Folding = AAAABAAAAAg
+; IDE Options = PureBasic 6.04 LTS (Windows - x64)
+; CursorPosition = 4784
+; FirstLine = 739
+; Folding = AAAAAAAAAAg+
 ; Optimizer
 ; EnableThread
 ; EnableXP
 ; DPIAware
 ; UseIcon = boing.ico
-; Executable = E:\WHDLoadTool\WHDLoadTool_x86.exe
+; Executable = E:\WHDLoadTool\WHDLoadTool.exe
 ; CurrentDirectory = E:\WHDLoadTool\
-; Compiler = PureBasic 6.03 beta 5 LTS (Windows - x64)
+; Compiler = PureBasic 6.04 LTS (Windows - x64)
 ; Debugger = Standalone
 ; Warnings = Display
 ; IncludeVersionInfo
-; VersionField0 = 1.2.0.0
-; VersionField1 = 1.2.0.0
+; VersionField0 = 1.3.0.0
+; VersionField1 = 1.3.0.0
 ; VersionField2 = MrV2K
 ; VersionField3 = WHDLoad Download Tool
-; VersionField4 = 1.2
-; VersionField5 = 1.2
+; VersionField4 = 1.3
+; VersionField5 = 1.3
 ; VersionField6 = WHDLoad Download Tool
 ; VersionField7 = WHDTool
 ; VersionField8 = WHDTool.exe
