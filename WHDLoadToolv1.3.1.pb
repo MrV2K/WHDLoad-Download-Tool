@@ -204,7 +204,7 @@ Global Version.s="1.3.1"
 ;
 ; Fixed list filter not updating for games and beta files
 ; Fixed Make Folder not finding any games.
-; Clear data now resets all settings including sort and download paths.
+; Clear data now resets all settings and filters including sort and download paths.
 ;
 ;============================================
 ; To Do List
@@ -836,6 +836,10 @@ Macro Update_Gadgets()
   SetGadgetText(#HTTP_SERVER_STRING,HTTP_Server)
   SetGadgetText(#WHD_MAIN_STRING,WHD_Folder)
   SetGadgetText(#WHD_GAME_STRING,WHD_Game_Folder)
+  SetGadgetState(#GAME_OPTION,Filter(0)\F_Games)
+  SetGadgetState(#DEMO_OPTION,Filter(0)\F_Demos)
+  SetGadgetState(#BETA_OPTION,Filter(0)\F_Beta)
+  SetGadgetState(#MAGS_OPTION,Filter(0)\F_Mags)
   SetGadgetText(#WHD_DEMO_STRING,WHD_Demo_Folder)
   SetGadgetText(#WHD_BETA_STRING,WHD_Beta_Folder)
   SetGadgetText(#WHD_MAGS_STRING,WHD_Mags_Folder)   
@@ -3254,6 +3258,8 @@ EndMacro
 
 Procedure Draw_Preview()
   
+  Debug ListSize(Down_List())
+  
   Protected first_letter.s, last_letter.s, old_first_letter.s, append_number.s, c_count.i, down_folder.s, found.b, whd_out_folder.s, old_title.s
   
   Protected level
@@ -4754,7 +4760,7 @@ Procedure About_Window()
   
   output$="         ╔═════════════════════════════════╗"+#CRLF$
   output$+"         ║                                 ║"+#CRLF$
-  output$+"         ║   WHDLoad Download Tool v"+Version+"    ║"+#CRLF$
+  output$+"         ║   WHDLoad Download Tool v"+Version+"  ║"+#CRLF$
   output$+"         ║                                 ║"+#CRLF$
   output$+"         ║    © 2023 Paul Vince (MrV2k)    ║"+#CRLF$
   output$+"         ║                                 ║"+#CRLF$
@@ -4809,7 +4815,7 @@ Procedure Help_Window()
   
   output$="                ╔══════════════════════════════════════════╗"+#CRLF$
   output$+"                ║                                          ║"+#CRLF$
-  output$+"                ║        WHDLoad Download Tool v"+Version+"        ║"+#CRLF$
+  output$+"                ║        WHDLoad Download Tool v"+Version+"      ║"+#CRLF$
   output$+"                ║                                          ║"+#CRLF$
   output$+"                ║         © 2023 Paul Vince (MrV2k)        ║"+#CRLF$
   output$+"                ║                                          ║"+#CRLF$
@@ -5582,6 +5588,7 @@ Repeat
         Pause_Window(#MAIN_WINDOW)
         ClearGadgetItems(#MAIN_LIST)
         Default_Settings()
+        Set_Filter(#True)
         Update_Gadgets()
         DisableGadget(#CLEAR_EDITS_BUTTON,#True)
         Disable_Gadgets(#True)
@@ -6154,10 +6161,10 @@ Repeat
 ForEver 
 
 End
-; IDE Options = PureBasic 6.10 beta 2 (Windows - x64)
-; CursorPosition = 1364
-; FirstLine = 710
-; Folding = AAAAAAAAAAA+
+; IDE Options = PureBasic 6.10 beta 6 (Windows - x64)
+; CursorPosition = 4817
+; FirstLine = 806
+; Folding = AAAAAAAAAAg+
 ; Optimizer
 ; EnableThread
 ; EnableXP
