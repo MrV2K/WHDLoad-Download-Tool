@@ -221,11 +221,13 @@ Global Version.s="1.4"
 ; Fixed Magazine button logic in filter.
 ; Split Beta category into Games and Demos and added separate paths to the folder List.
 ; Moved folder options into a scrolling gadget to keep window size the same.
-; 'Update Files' window only shows if a file is actually downloaded from the 'Download' window.
+; 'Update Files' window now only shows if a file is actually downloaded from the 'Download' window.
 ; CD32 games now are categorised as AGA.
 ; Fixed download preview list.
-; Added AGA/ECS data to Magazines. Files will be split if category is selected on download.
+; Added AGA/ECS data to Magazines. Files will be split if category sort is selected on download.
 ; Fixed FTP download not creating all Category (0-Z) sub folders.
+; Fixed a few errors in the help file.
+; Improved CD32 & CDTV detection in game list filename scrape.
 ;
 ;============================================
 ; To Do List
@@ -4378,19 +4380,7 @@ Procedure Draw_Preview()
   
   FreeList(Sort_List())
   FreeList(Cat_List())
-  
-  count=CountGadgetItems(#DOWNLOAD_LIST)
-  
-  Protected i
-  
-  For i=0 To count-1
-    If GetGadgetItemAttribute(#DOWNLOAD_LIST,i,#PB_Tree_SubLevel)=0
-      If GetGadgetItemAttribute(#DOWNLOAD_LIST,i+1,#PB_Tree_SubLevel)=0
-        Debug GetGadgetItemText(#DOWNLOAD_LIST,i,0)
-      EndIf      
-    EndIf
-  Next
-    
+     
   Resume_Gadget(#DOWNLOAD_LIST)
   
   SetWindowTitle(#DOWNLOAD_WINDOW,old_title)
@@ -4786,8 +4776,8 @@ Procedure Scrape_Data()
       Game_List()\File_CDROM=#True
       Game_List()\File_Amiga=#False
     EndIf
-    If FindString(Game_List()\File_Name,"_CD32") : Game_List()\File_CD32=#True : Game_List()\File_AGA=#True : Game_List()\File_Amiga=#False : EndIf
-    If FindString(Game_List()\File_Name,"_CDTV") : Game_List()\File_CDTV=#True : Game_List()\File_Amiga=#False : EndIf
+    If FindString(Game_List()\File_Name,"CD32") : Game_List()\File_CD32=#True : Game_List()\File_AGA=#True : Game_List()\File_Amiga=#False : EndIf
+    If FindString(Game_List()\File_Name,"CDTV") : Game_List()\File_CDTV=#True : Game_List()\File_Amiga=#False : EndIf
     If FindString(Game_List()\File_Name,"_Chip") : Game_List()\File_Chip=#True : EndIf
     If FindString(Game_List()\File_Name,"_Fast") : Game_List()\File_Fast=#True : EndIf
     If FindString(Game_List()\File_Name,"_Slow") : Game_List()\File_Chip=#True : EndIf
@@ -4956,7 +4946,7 @@ Procedure About_Window()
   
   output$="         ╔═════════════════════════════════╗"+#CRLF$
   output$+"         ║                                 ║"+#CRLF$
-  output$+"         ║   WHDLoad Download Tool v"+Version+"  ║"+#CRLF$
+  output$+"         ║   WHDLoad Download Tool v"+LSet(Version,5)+"  ║"+#CRLF$
   output$+"         ║                                 ║"+#CRLF$
   output$+"         ║    © 2024 Paul Vince (MrV2k)    ║"+#CRLF$
   output$+"         ║                                 ║"+#CRLF$
@@ -5061,7 +5051,7 @@ Procedure Help_Window()
   output$+#CRLF$
   output$+"Server Settings"+#CRLF$
   output$+"---------------"+#CRLF$
-  output$+"This section shows the current server settings. All of the settings can be changed but bet careful when doing so as you can break the download process. Only change these settings if you know what you're doing!"+#CRLF$
+  output$+"This section shows the current Turran FTP server settings. All of the settings can be changed but be careful when doing so as you can break the download process. Only change these settings if you know what you're doing!"+#CRLF$
   output$+#CRLF$
   output$+"    User Name  - Sets the FTP user name."+#CRLF$
   output$+"    Password   - Sets the FTP password."+#CRLF$
@@ -5104,16 +5094,20 @@ Procedure Help_Window()
   output$+"                       paths set in the 'Games', 'Demos', 'Beta'"+#CRLF$
   output$+"                       and 'Mags' path boxes but won't add any"+#CRLF$
   output$+"                       extra subdirectories."+#CRLF$
-  output$+"    Sort by 0-Z      - This will download the archives into the"+#CRLF$
+  output$+"    Alphabetical     - This will download the archives into the"+#CRLF$
   output$+"                       paths set in the 'Games', 'Demos', 'Beta'"+#CRLF$
   output$+"                       and 'Mags' path boxes and will further split"+#CRLF$
   output$+"                       them alphabetically."+#CRLF$
-  output$+"    Sort by Category - This will download the archives into the"+#CRLF$
+  output$+"    Category         - This will download the archives into the"+#CRLF$
   output$+"                       paths set in the 'Games', 'Demos', 'Beta'"+#CRLF$
   output$+"                       and 'Mags' path boxes and will further split"+#CRLF$
   output$+"                       them by category."+#CRLF$
+  output$+"    Category (0-Z)   - This will download the archives into the"+#CRLF$
+  output$+"                       paths set in the 'Games', 'Demos', 'Beta'"+#CRLF$
+  output$+"                       and 'Mags' path boxes, will further split"+#CRLF$
+  output$+"                       them by category and then alphabetically."+#CRLF$
   output$+#CRLF$
-  output$+"When you select 'Sort by Category', the second sorting drop box will become available. In this box you can set whether non-english archives are split into their own folders or not."+#CRLF$
+  output$+"When you select 'Category' or 'Category (0-Z), the second sorting drop box will become available. In this box you can set whether non-english archives are split into their own folders or not."+#CRLF$
   output$+#CRLF$
   output$+"All path information and sorting settings are saved in the preference files. "+#CRLF$
   output$+#CRLF$
@@ -6388,9 +6382,9 @@ ForEver
 
 End
 ; IDE Options = PureBasic 6.11 LTS (Windows - x64)
-; CursorPosition = 225
-; FirstLine = 202
-; Folding = AAAgAAAAwgB-
+; CursorPosition = 261
+; FirstLine = 201
+; Folding = AAAAAAAAAAC+
 ; Optimizer
 ; EnableThread
 ; EnableXP
@@ -6398,28 +6392,26 @@ End
 ; UseIcon = boing.ico
 ; Executable = E:\WHDLoadTool\WHDLoadTool.exe
 ; CurrentDirectory = E:\WHDLoadTool\
-; Compiler = PureBasic 6.11 LTS (Windows - x64)
+; Compiler = PureBasic 6.11 LTS (Windows - x86)
 ; Debugger = Standalone
 ; Warnings = Display
 ; IncludeVersionInfo
-; VersionField0 = 1.3.0.0
-; VersionField1 = 1.3.0.0
+; VersionField0 = 1.4.0.0
+; VersionField1 = 1.4.0.0
 ; VersionField2 = MrV2K
 ; VersionField3 = WHDLoad Download Tool
-; VersionField4 = 1.3
-; VersionField5 = 1.3
+; VersionField4 = 1.4
+; VersionField5 = 1.4
 ; VersionField6 = WHDLoad Download Tool
 ; VersionField7 = WHDTool
-; VersionField8 = WHDTool.exe
-; VersionField9 = 2023 Paul Vince (MrV2k)
+; VersionField8 = WHDLoadTool.exe
+; VersionField9 = 2024 Paul Vince (MrV2k)
 ; VersionField10 = -
 ; VersionField11 = -
 ; VersionField12 = -
 ; VersionField13 = -
 ; VersionField14 = -
-; VersionField15 = VOS_NT
-; VersionField16 = VFT_APP
-; VersionField17 = 041c Albanian
+; VersionField17 = 0809 English (United Kingdom)
 ; VersionField21 = -
 ; VersionField22 = -
 ; VersionField23 = -
