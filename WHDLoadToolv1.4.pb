@@ -219,11 +219,11 @@ Global Version.s="1.4"
 ;============================================
 ;
 ; Fixed Magazine button logic in filter.
-; Split beta category into Games and Demos and added separate paths to the folder List.
+; Split Beta category into Games and Demos and added separate paths to the folder List.
 ; Moved folder options into a scrolling gadget to keep window size the same.
 ; 'Update Files' window only shows if a file is actually downloaded from the 'Download' window.
 ; CD32 games now are categorised as AGA.
-; Fixed download preview on 'Category (0-Z)' sorting.
+; Fixed download preview list.
 ;
 ;============================================
 ; To Do List
@@ -1148,70 +1148,6 @@ Procedure Update_Genre()
       Game_List()\File_Genre="Magazine"
     EndIf 
     
-  Next  
-  
-EndProcedure
-
-Procedure Make_Download_List()
-  
-  ClearList(Down_List())
-  
-  ForEach Filtered_List()
-    SelectElement(Game_List(),Filtered_List())
-    If Game_List()\File_Available<>#True Or Game_List()\File_CRC<>Game_List()\File_Archive_CRC ; if file not available locally or has an invalid crc add to downlist
-      AddElement(Down_List())
-      Down_List()\Down_Name=Game_List()\File_Name
-      Down_List()\Down_Type=Game_List()\File_Type
-      Down_List()\Down_Size=Game_List()\File_Size
-      Down_List()\Down_Index=ListIndex(Game_List())
-      Down_List()\Down_CRC=Game_List()\File_CRC
-      Down_List()\Down_Folder=Game_List()\File_SubFolder
-      Down_List()\Down_0toZ=Game_List()\File_SubFolder
-      If Game_List()\File_Type="Game" And Game_List()\File_Beta_Game<>#True
-        If Split_Languages=0
-          If Game_List()\File_AGA And Game_List()\File_NTSC=#False : Down_List()\Down_Folder="AGA" : EndIf
-          If Game_List()\File_AGA=#False And Game_List()\File_NTSC=#False : Down_List()\Down_Folder="ECS-OCS" : EndIf
-          If Game_List()\File_Arcadia : Down_List()\Down_Folder="Arcadia" : EndIf
-          If Game_List()\File_CD32 And Game_List()\File_NTSC=#False : Down_List()\Down_Folder="CD32" : EndIf
-          If Game_List()\File_CDROM And Game_List()\File_NTSC=#False : Down_List()\Down_Folder="CDROM" : EndIf
-          If Game_List()\File_CDTV And Game_List()\File_NTSC=#False : Down_List()\Down_Folder="CDTV" : EndIf
-          If Game_List()\File_NTSC : Down_List()\Down_Folder="NTSC" : EndIf
-        EndIf
-        If Split_Languages=1
-          If Game_List()\File_AGA And Game_List()\File_NTSC=#False And Game_List()\File_Language="English" : Down_List()\Down_Folder="AGA" : EndIf 
-          If Game_List()\File_AGA=#False And Game_List()\File_NTSC=#False And Game_List()\File_Language="English" : Down_List()\Down_Folder="ECS-OCS" : EndIf
-          If Game_List()\File_Arcadia And Game_List()\File_Language="English" : Down_List()\Down_Folder="Arcadia" : EndIf
-          If Game_List()\File_CD32 And Game_List()\File_NTSC=#False And Game_List()\File_Language="English" : Down_List()\Down_Folder="CD32" : EndIf
-          If Game_List()\File_CDROM And Game_List()\File_NTSC=#False And Game_List()\File_Language="English" : Down_List()\Down_Folder="CDROM" : EndIf
-          If Game_List()\File_CDTV And Game_List()\File_NTSC=#False And Game_List()\File_Language="English" : Down_List()\Down_Folder="CDTV" : EndIf
-          If Game_List()\File_NTSC And Game_List()\File_Language="English" : Down_List()\Down_Folder="NTSC" : EndIf
-          If Game_List()\File_Language<>"English" : Down_List()\Down_Folder=Game_List()\File_Language : EndIf
-        EndIf
-        Down_List()\Down_FTP_Folder=FTP_Game_Folder
-      EndIf 
-      If Game_List()\File_Type="Game" And Game_List()\File_Beta_Game=#True
-        Down_List()\Down_Type="Beta/Game"
-        If Game_List()\File_AGA : Down_List()\Down_Folder="AGA" : EndIf
-        If Game_List()\File_AGA=#False : Down_List()\Down_Folder="ECS-OCS" : EndIf
-        Down_List()\Down_FTP_Folder=FTP_Beta_Folder1
-      EndIf 
-      If Game_List()\File_Type="Demo" 
-        If Game_List()\File_AGA : Down_List()\Down_Folder="AGA" : EndIf
-        If Game_List()\File_AGA=#False : Down_List()\Down_Folder="ECS-OCS" : EndIf
-        Down_List()\Down_FTP_Folder=FTP_Demo_Folder
-      EndIf   
-      If Game_List()\File_Type="Demo" And Game_List()\File_Beta_Demo=#True
-        Down_List()\Down_Type="Beta/Demo"
-        If Game_List()\File_AGA : Down_List()\Down_Folder="AGA" : EndIf
-        If Game_List()\File_AGA=#False : Down_List()\Down_Folder="ECS-OCS" : EndIf
-        Down_List()\Down_FTP_Folder=FTP_Beta_Folder2
-      EndIf 
-      If Game_List()\File_Type="Magazine" 
-        Down_List()\Down_Folder="Magazine"
-        Down_List()\Down_FTP_Folder=FTP_Mags_Folder
-      EndIf 
-      Down_List()\Down_HTTP_Folder=HTTP_Server+"/"+Down_List()\Down_FTP_Folder+"/"+Down_List()\Down_0toZ+"/"+Down_List()\Down_Name
-    EndIf
   Next  
   
 EndProcedure
@@ -3065,21 +3001,34 @@ Macro Add_Category2(ftype,category,category2)
       EndIf
     EndIf
   Next 
-  
-  If ListSize(Sort_List())>0 : found=#True : EndIf
-  
+   
+  If ListSize(Sort_List())>0 
+    If title=#False 
+      AddGadgetItem(#DOWNLOAD_LIST,-1,titlename$,0,0)
+      title=#True
+    EndIf
+    If subtitle=#False 
+      AddGadgetItem(#DOWNLOAD_LIST,-1,titlename2$,0,1)
+      subtitle=#True
+    EndIf
+    found=#True
+  EndIf
+
   If A500Mini=#False 
     If ListSize(Sort_List())>0
       AddGadgetItem(#DOWNLOAD_LIST,-1,category2,0,2)
       ForEach Sort_List()
-        AddGadgetItem(#DOWNLOAD_LIST,-1,Sort_List()\Sort_Name,0,3)
-        SelectElement(Down_List(),Sort_List()\Sort_Index)
-        Down_List()\Down_SubFolder_1=whd_out_folder
-        If ftype="Magazine"
-          Down_List()\Down_SubFolder_2=category2
-          Down_List()\Down_SubFolder_3=""
+        If Sort_Type=2 
+          AddGadgetItem(#DOWNLOAD_LIST,-1,Sort_List()\Sort_Name,0,2)
+          SelectElement(Down_List(),Sort_List()\Sort_Index)
+          Down_List()\Down_SubFolder_1=whd_out_folder
+          Down_List()\Down_SubFolder_2=""
+          Down_List()\Down_SubFolder_3=category2
         Else
-          Down_List()\Down_SubFolder_2=category
+          AddGadgetItem(#DOWNLOAD_LIST,-1,Sort_List()\Sort_Name,0,3)
+          SelectElement(Down_List(),Sort_List()\Sort_Index)
+          Down_List()\Down_SubFolder_1=whd_out_folder
+          Down_List()\Down_SubFolder_2=category   
           Down_List()\Down_SubFolder_3=category2
         EndIf
       Next    
@@ -3090,11 +3039,19 @@ Macro Add_Category2(ftype,category,category2)
     If ListSize(Sort_List())<=255 And ListSize(Sort_List())>0
       AddGadgetItem(#DOWNLOAD_LIST,-1,category2,0,2)
       ForEach Sort_List()
-        AddGadgetItem(#DOWNLOAD_LIST,-1,Sort_List()\Sort_Name,0,3)
-        SelectElement(Down_List(),Sort_List()\Sort_Index)
-        Down_List()\Down_SubFolder_1=whd_out_folder
-        Down_List()\Down_SubFolder_2=category
-        Down_List()\Down_SubFolder_3=category2
+        If ftype="Magazine"
+          AddGadgetItem(#DOWNLOAD_LIST,-1,Sort_List()\Sort_Name,0,2)
+          SelectElement(Down_List(),Sort_List()\Sort_Index)
+          Down_List()\Down_SubFolder_1=whd_out_folder
+          Down_List()\Down_SubFolder_2=""
+          Down_List()\Down_SubFolder_3=""
+        Else
+          AddGadgetItem(#DOWNLOAD_LIST,-1,Sort_List()\Sort_Name,0,3)
+          SelectElement(Down_List(),Sort_List()\Sort_Index)
+          Down_List()\Down_SubFolder_1=whd_out_folder
+          Down_List()\Down_SubFolder_2=category
+          Down_List()\Down_SubFolder_3=category2
+        EndIf
       Next    
     EndIf
     
@@ -3113,8 +3070,13 @@ Macro Add_Category2(ftype,category,category2)
         AddGadgetItem(#DOWNLOAD_LIST,-1,Sort_List()\Sort_Name,0,3)
         SelectElement(Down_List(),Sort_List()\Sort_Index)
         Down_List()\Down_SubFolder_1=whd_out_folder
-        Down_List()\Down_SubFolder_2=category
-        Down_List()\Down_SubFolder_3=down_folder
+        If ftype="Magazine"
+          Down_List()\Down_SubFolder_2=category2
+          Down_List()\Down_SubFolder_3=""
+        Else
+          Down_List()\Down_SubFolder_2=category
+          Down_List()\Down_SubFolder_3=down_folder
+        EndIf
         count+1
       Next
     EndIf
@@ -3159,21 +3121,22 @@ Macro Add_Category(ftype,category,category2)
     Next 
   EndIf
       
-  If ListSize(Sort_List())>0 : found=#True : EndIf
+  If ListSize(Sort_List())>0 
+    If title=#False : AddGadgetItem(#DOWNLOAD_LIST,-1,titlename$,0,0) : title=#True: EndIf
+    found=#True
+  EndIf
   
   If A500Mini=#False 
     If ListSize(Sort_List())>0
       AddGadgetItem(#DOWNLOAD_LIST,-1,category,0,1)
-      ForEach Sort_List()
-        AddGadgetItem(#DOWNLOAD_LIST,-1,Sort_List()\Sort_Name,0,2)
-        SelectElement(Down_List(),Sort_List()\Sort_Index)
-        Down_List()\Down_SubFolder_1=whd_out_folder
-        If ftype="Magazine" And Sort_Type=2
-          Down_List()\Down_SubFolder_2=""
-        Else
-          Down_List()\Down_SubFolder_2=category
-        EndIf
-        Down_List()\Down_SubFolder_3=category2
+      ForEach Sort_List()     
+
+          AddGadgetItem(#DOWNLOAD_LIST,-1,Sort_List()\Sort_Name,0,2)
+          SelectElement(Down_List(),Sort_List()\Sort_Index)
+          Down_List()\Down_SubFolder_1=whd_out_folder
+          Down_List()\Down_SubFolder_2=category   
+          Down_List()\Down_SubFolder_3=category2
+
       Next    
     EndIf
   EndIf
@@ -3184,9 +3147,9 @@ Macro Add_Category(ftype,category,category2)
       ForEach Sort_List()
         AddGadgetItem(#DOWNLOAD_LIST,-1,Sort_List()\Sort_Name,0,2)
         SelectElement(Down_List(),Sort_List()\Sort_Index)
-        Down_List()\Down_SubFolder_1=whd_out_folder
-        Down_List()\Down_SubFolder_2=category
-        Down_List()\Down_SubFolder_3=category2
+        Down_List()\Down_SubFolder_1=whd_out_folder ; out folder
+        Down_List()\Down_SubFolder_2=category ; ecs-ocs
+        Down_List()\Down_SubFolder_3=category2 ; a-z
       Next    
     EndIf
     
@@ -3311,34 +3274,71 @@ Macro Add_Unsorted_A500(ftype,category)
   
 EndMacro
 
-Macro Remove_Tree_Title()
+Procedure Make_Download_List()
   
-  If found=#False
-    
-    count=CountGadgetItems(#DOWNLOAD_LIST)
-    
-    Repeat
-      RemoveGadgetItem(#DOWNLOAD_LIST,count) 
-      count-1
-    Until GetGadgetItemAttribute(#DOWNLOAD_LIST,count,#PB_Tree_SubLevel)=0
-    
-    RemoveGadgetItem(#DOWNLOAD_LIST,count)
-    
-  EndIf
+  ClearList(Down_List())
   
-EndMacro
-
-Macro Remove_Tree_SubTitle()
-
-  If found=#False 
-    
-    If GetGadgetItemAttribute(#DOWNLOAD_LIST,CountGadgetItems(#DOWNLOAD_LIST)-1,#PB_Tree_SubLevel)=2
-      RemoveGadgetItem(#DOWNLOAD_LIST,CountGadgetItems(#DOWNLOAD_LIST)-1) 
+  ForEach Filtered_List()
+    SelectElement(Game_List(),Filtered_List())
+    If Game_List()\File_Available<>#True Or Game_List()\File_CRC<>Game_List()\File_Archive_CRC ; if file not available locally or has an invalid crc add to downlist
+      AddElement(Down_List())
+      Down_List()\Down_Name=Game_List()\File_Name
+      Down_List()\Down_Type=Game_List()\File_Type
+      Down_List()\Down_Size=Game_List()\File_Size
+      Down_List()\Down_Index=ListIndex(Game_List())
+      Down_List()\Down_CRC=Game_List()\File_CRC
+      Down_List()\Down_Folder=Game_List()\File_SubFolder
+      Down_List()\Down_0toZ=Game_List()\File_SubFolder
+      If Game_List()\File_Type="Game" And Game_List()\File_Beta_Game<>#True
+        If Split_Languages=0
+          If Game_List()\File_AGA And Game_List()\File_NTSC=#False : Down_List()\Down_Folder="AGA" : EndIf
+          If Game_List()\File_AGA=#False And Game_List()\File_NTSC=#False : Down_List()\Down_Folder="ECS-OCS" : EndIf
+          If Game_List()\File_Arcadia : Down_List()\Down_Folder="Arcadia" : EndIf
+          If Game_List()\File_CD32 And Game_List()\File_NTSC=#False : Down_List()\Down_Folder="CD32" : EndIf
+          If Game_List()\File_CDROM And Game_List()\File_NTSC=#False : Down_List()\Down_Folder="CDROM" : EndIf
+          If Game_List()\File_CDTV And Game_List()\File_NTSC=#False : Down_List()\Down_Folder="CDTV" : EndIf
+          If Game_List()\File_NTSC : Down_List()\Down_Folder="NTSC" : EndIf
+        EndIf
+        If Split_Languages=1
+          If Game_List()\File_AGA And Game_List()\File_NTSC=#False And Game_List()\File_Language="English" : Down_List()\Down_Folder="AGA" : EndIf 
+          If Game_List()\File_AGA=#False And Game_List()\File_NTSC=#False And Game_List()\File_Language="English" : Down_List()\Down_Folder="ECS-OCS" : EndIf
+          If Game_List()\File_Arcadia And Game_List()\File_Language="English" : Down_List()\Down_Folder="Arcadia" : EndIf
+          If Game_List()\File_CD32 And Game_List()\File_NTSC=#False And Game_List()\File_Language="English" : Down_List()\Down_Folder="CD32" : EndIf
+          If Game_List()\File_CDROM And Game_List()\File_NTSC=#False And Game_List()\File_Language="English" : Down_List()\Down_Folder="CDROM" : EndIf
+          If Game_List()\File_CDTV And Game_List()\File_NTSC=#False And Game_List()\File_Language="English" : Down_List()\Down_Folder="CDTV" : EndIf
+          If Game_List()\File_NTSC And Game_List()\File_Language="English" : Down_List()\Down_Folder="NTSC" : EndIf
+          If Game_List()\File_Language<>"English" : Down_List()\Down_Folder=Game_List()\File_Language : EndIf
+        EndIf
+        Down_List()\Down_FTP_Folder=FTP_Game_Folder
+      EndIf 
+      If Game_List()\File_Type="Game" And Game_List()\File_Beta_Game=#True
+        Down_List()\Down_Type="Beta/Game"
+        If Game_List()\File_AGA : Down_List()\Down_Folder="AGA" : EndIf
+        If Game_List()\File_AGA=#False : Down_List()\Down_Folder="ECS-OCS" : EndIf
+        Down_List()\Down_FTP_Folder=FTP_Beta_Folder1
+      EndIf 
+      If Game_List()\File_Type="Demo" 
+        If Game_List()\File_AGA : Down_List()\Down_Folder="AGA" : EndIf
+        If Game_List()\File_AGA=#False : Down_List()\Down_Folder="ECS-OCS" : EndIf
+        Down_List()\Down_FTP_Folder=FTP_Demo_Folder
+      EndIf   
+      If Game_List()\File_Type="Demo" And Game_List()\File_Beta_Demo=#True
+        Down_List()\Down_Type="Beta/Demo"
+        If Game_List()\File_AGA : Down_List()\Down_Folder="AGA" : EndIf
+        If Game_List()\File_AGA=#False : Down_List()\Down_Folder="ECS-OCS" : EndIf
+        Down_List()\Down_FTP_Folder=FTP_Beta_Folder2
+      EndIf 
+      If Game_List()\File_Type="Magazine" 
+        Down_List()\Down_Folder="Magazine"
+        If Game_List()\File_AGA : Down_List()\Down_Folder="AGA" : EndIf
+        If Game_List()\File_AGA=#False : Down_List()\Down_Folder="ECS-OCS" : EndIf
+        Down_List()\Down_FTP_Folder=FTP_Mags_Folder
+      EndIf 
+      Down_List()\Down_HTTP_Folder=HTTP_Server+"/"+Down_List()\Down_FTP_Folder+"/"+Down_List()\Down_0toZ+"/"+Down_List()\Down_Name
     EndIf
-    
-  EndIf
+  Next  
   
-EndMacro
+EndProcedure
 
 Procedure Draw_Preview()
   
@@ -3390,9 +3390,14 @@ Procedure Draw_Preview()
     
   EndIf
   
+  Protected title.b=#False
+  Protected subtitle.b=#False
+  Protected titlename$=""
+  Protected titlename2$=""
+  
   If Sort_Type=1
-    
-    AddGadgetItem(#DOWNLOAD_LIST,-1,WHD_Game_Folder,0,0)
+    title=#False
+    titlename$=WHD_Game_Folder
     Add_Category("Game","0","")
     Add_Category("Game","A","")
     Add_Category("Game","B","")
@@ -3420,8 +3425,8 @@ Procedure Draw_Preview()
     Add_Category("Game","X","")
     Add_Category("Game","Y","")
     Add_Category("Game","Z","")
-    Remove_Tree_SubTitle()
-    AddGadgetItem(#DOWNLOAD_LIST,-1,WHD_Demo_Folder,0,0)
+    title=#False
+    titlename$=WHD_Demo_Folder
     Add_Category("Demo","0","")
     Add_Category("Demo","A","")
     Add_Category("Demo","B","")
@@ -3449,8 +3454,8 @@ Procedure Draw_Preview()
     Add_Category("Demo","X","")
     Add_Category("Demo","Y","")
     Add_Category("Demo","Z","")
-    Remove_Tree_SubTitle()
-    AddGadgetItem(#DOWNLOAD_LIST,-1,WHD_Beta_Folder1,0,0)
+    title=#False
+    titlename$=WHD_Beta_Folder1
     Add_Category("Beta/Game","0","")
     Add_Category("Beta/Game","A","")
     Add_Category("Beta/Game","B","")
@@ -3478,8 +3483,8 @@ Procedure Draw_Preview()
     Add_Category("Beta/Game","X","")
     Add_Category("Beta/Game","Y","")
     Add_Category("Beta/Game","Z","")
-    Remove_Tree_SubTitle()
-    AddGadgetItem(#DOWNLOAD_LIST,-1,WHD_Beta_Folder2,0,0)
+    title=#False
+    titlename$=WHD_Beta_Folder2
     Add_Category("Beta/Demo","0","")
     Add_Category("Beta/Demo","A","")
     Add_Category("Beta/Demo","B","")
@@ -3507,8 +3512,8 @@ Procedure Draw_Preview()
     Add_Category("Beta/Demo","X","")
     Add_Category("Beta/Demo","Y","")
     Add_Category("Beta/Demo","Z","")
-    Remove_Tree_SubTitle()
-    AddGadgetItem(#DOWNLOAD_LIST,-1,WHD_Mags_Folder,0,0)
+    title=#False
+    titlename$=WHD_Mags_Folder
     Add_Category("Magazine","0","")
     Add_Category("Magazine","A","")
     Add_Category("Magazine","B","")
@@ -3536,11 +3541,11 @@ Procedure Draw_Preview()
     Add_Category("Magazine","X","")
     Add_Category("Magazine","Y","")
     Add_Category("Magazine","Z","")
-    Remove_Tree_Title()
   EndIf
   
   If Sort_Type=2
-    AddGadgetItem(#DOWNLOAD_LIST,-1,WHD_Game_Folder,0,0)
+    title=#False
+    titlename$=WHD_Game_Folder
     Add_Category("Game","AGA","")
     Add_Category("Game","ECS-OCS","")
     Add_Category("Game","NTSC","")
@@ -3560,12 +3565,12 @@ Procedure Draw_Preview()
     Add_Category("Game","Polish","")
     Add_Category("Game","Czech","")
     Add_Category("Game","Multi","")
-    Remove_Tree_SubTitle()
-    AddGadgetItem(#DOWNLOAD_LIST,-1,WHD_Demo_Folder,0,0) 
+    title=#False
+    titlename$=WHD_Demo_Folder
     Add_Category("Demo","AGA","")
     Add_Category("Demo","ECS-OCS","")
-    Remove_Tree_SubTitle()
-    AddGadgetItem(#DOWNLOAD_LIST,-1,WHD_Beta_Folder1,0,0) 
+    title=#False
+    titlename$=WHD_Beta_Folder1
     Add_Category("Beta/Game","AGA","")
     Add_Category("Beta/Game","ECS-OCS","")
     Add_Category("Beta/Game","NTSC","")
@@ -3573,8 +3578,8 @@ Procedure Draw_Preview()
     Add_Category("Beta/Game","CD32","")
     Add_Category("Beta/Game","CDTV","")
     Add_Category("Beta/Game","CDROM","")
-    Remove_Tree_SubTitle()
-    AddGadgetItem(#DOWNLOAD_LIST,-1,WHD_Beta_Folder2,0,0) 
+    title=#False
+    titlename$=WHD_Beta_Folder2
     Add_Category("Beta/Demo","AGA","")
     Add_Category("Beta/Demo","ECS-OCS","")
     Add_Category("Beta/Demo","NTSC","")
@@ -3582,16 +3587,17 @@ Procedure Draw_Preview()
     Add_Category("Beta/Demo","CD32","")
     Add_Category("Beta/Demo","CDTV","")
     Add_Category("Beta/Demo","CDROM","")
-    Remove_Tree_SubTitle()
-    AddGadgetItem(#DOWNLOAD_LIST,-1,WHD_Mags_Folder,0,0) 
-    Add_Category("Magazine","Magazine","")
-    Remove_Tree_SubTitle()
-    Remove_Tree_Title()
+    title=#False
+    titlename$=WHD_Mags_Folder
+    Add_Category("Magazine","AGA","")
+    Add_Category("Magazine","ECS-OCS","")
   EndIf
   
   If Sort_Type=3
-    AddGadgetItem(#DOWNLOAD_LIST,-1,WHD_Game_Folder,0,0)
-    AddGadgetItem(#DOWNLOAD_LIST,-1,"AGA",0,1)
+    title=#False
+    subtitle=#False
+    titlename$=WHD_Game_Folder
+    titlename2$="AGA"
     Add_Category2("Game","AGA","0")
     Add_Category2("Game","AGA","A")
     Add_Category2("Game","AGA","B")
@@ -3619,8 +3625,8 @@ Procedure Draw_Preview()
     Add_Category2("Game","AGA","X")
     Add_Category2("Game","AGA","Y")
     Add_Category2("Game","AGA","Z")
-    Remove_Tree_SubTitle()
-    AddGadgetItem(#DOWNLOAD_LIST,-1,"ECS-OCS",0,1)
+    subtitle=#False
+    titlename2$="ECS-OCS"
     Add_Category2("Game","ECS-OCS","0")
     Add_Category2("Game","ECS-OCS","A")
     Add_Category2("Game","ECS-OCS","B")
@@ -3648,8 +3654,8 @@ Procedure Draw_Preview()
     Add_Category2("Game","ECS-OCS","X")
     Add_Category2("Game","ECS-OCS","Y")
     Add_Category2("Game","ECS-OCS","Z")
-    Remove_Tree_SubTitle()
-    AddGadgetItem(#DOWNLOAD_LIST,-1,"NTSC",0,1)
+    subtitle=#False
+    titlename2$="NTSC"
     Add_Category2("Game","NTSC","0")
     Add_Category2("Game","NTSC","A")
     Add_Category2("Game","NTSC","B")
@@ -3677,8 +3683,8 @@ Procedure Draw_Preview()
     Add_Category2("Game","NTSC","X")
     Add_Category2("Game","NTSC","Y")
     Add_Category2("Game","NTSC","Z")
-    Remove_Tree_SubTitle()
-    AddGadgetItem(#DOWNLOAD_LIST,-1,"Arcadia",0,1)
+    subtitle=#False
+    titlename2$="Arcadia"
     Add_Category2("Game","Arcadia","0")
     Add_Category2("Game","Arcadia","A")
     Add_Category2("Game","Arcadia","B")
@@ -3706,8 +3712,8 @@ Procedure Draw_Preview()
     Add_Category2("Game","Arcadia","X")
     Add_Category2("Game","Arcadia","Y")
     Add_Category2("Game","Arcadia","Z")
-    Remove_Tree_SubTitle()
-    AddGadgetItem(#DOWNLOAD_LIST,-1,"CD32",0,1)
+    subtitle=#False
+    titlename2$="CD32"
     Add_Category2("Game","CD32","0")
     Add_Category2("Game","CD32","A")
     Add_Category2("Game","CD32","B")
@@ -3735,8 +3741,8 @@ Procedure Draw_Preview()
     Add_Category2("Game","CD32","X")
     Add_Category2("Game","CD32","Y")
     Add_Category2("Game","CD32","Z")
-    Remove_Tree_SubTitle()
-    AddGadgetItem(#DOWNLOAD_LIST,-1,"CDTV",0,1)
+    subtitle=#False
+    titlename2$="CDTV"
     Add_Category2("Game","CDTV","0")
     Add_Category2("Game","CDTV","A")
     Add_Category2("Game","CDTV","B")
@@ -3764,8 +3770,8 @@ Procedure Draw_Preview()
     Add_Category2("Game","CDTV","X")
     Add_Category2("Game","CDTV","Y")
     Add_Category2("Game","CDTV","Z")
-    Remove_Tree_SubTitle()
-    AddGadgetItem(#DOWNLOAD_LIST,-1,"CDROM",0,1)
+    subtitle=#False
+    titlename2$="CDROM"
     Add_Category2("Game","CDROM","0")
     Add_Category2("Game","CDROM","A")
     Add_Category2("Game","CDROM","B")
@@ -3794,8 +3800,8 @@ Procedure Draw_Preview()
     Add_Category2("Game","CDROM","Y")
     Add_Category2("Game","CDROM","Z")
     If Split_Languages
-      Remove_Tree_SubTitle()
-      AddGadgetItem(#DOWNLOAD_LIST,-1,"French",0,1)
+      subtitle=#False
+      titlename2$="French"
       Add_Category2("Game","French","0")
       Add_Category2("Game","French","A")
       Add_Category2("Game","French","B")
@@ -3823,8 +3829,8 @@ Procedure Draw_Preview()
       Add_Category2("Game","French","X")
       Add_Category2("Game","French","Y")
       Add_Category2("Game","French","Z")
-      Remove_Tree_SubTitle()
-      AddGadgetItem(#DOWNLOAD_LIST,-1,"German",0,1)
+    subtitle=#False
+    titlename2$="German"
       Add_Category2("Game","German","0")
       Add_Category2("Game","German","A")
       Add_Category2("Game","German","B")
@@ -3852,8 +3858,8 @@ Procedure Draw_Preview()
       Add_Category2("Game","German","X")
       Add_Category2("Game","German","Y")
       Add_Category2("Game","German","Z")
-      Remove_Tree_SubTitle()
-      AddGadgetItem(#DOWNLOAD_LIST,-1,"Italian",0,1)
+    subtitle=#False
+    titlename2$="Italian"
       Add_Category2("Game","Italian","0")
       Add_Category2("Game","Italian","A")
       Add_Category2("Game","Italian","B")
@@ -3881,8 +3887,8 @@ Procedure Draw_Preview()
       Add_Category2("Game","Italian","X")
       Add_Category2("Game","Italian","Y")
       Add_Category2("Game","Italian","Z")
-      Remove_Tree_SubTitle()
-      AddGadgetItem(#DOWNLOAD_LIST,-1,"Spanish",0,1)
+    subtitle=#False
+    titlename2$="Spanish"
       Add_Category2("Game","Spanish","0")
       Add_Category2("Game","Spanish","A")
       Add_Category2("Game","Spanish","B")
@@ -3910,8 +3916,8 @@ Procedure Draw_Preview()
       Add_Category2("Game","Spanish","X")
       Add_Category2("Game","Spanish","Y")
       Add_Category2("Game","Spanish","Z")
-      Remove_Tree_SubTitle()
-      AddGadgetItem(#DOWNLOAD_LIST,-1,"Greek",0,1)
+    subtitle=#False
+    titlename2$="Greek"
       Add_Category2("Game","Greek","0")
       Add_Category2("Game","Greek","A")
       Add_Category2("Game","Greek","B")
@@ -3939,8 +3945,8 @@ Procedure Draw_Preview()
       Add_Category2("Game","Greek","X")
       Add_Category2("Game","Greek","Y")
       Add_Category2("Game","Greek","Z")
-      Remove_Tree_SubTitle()
-      AddGadgetItem(#DOWNLOAD_LIST,-1,"Danish",0,1)
+    subtitle=#False
+    titlename2$="Danish"
       Add_Category2("Game","Danish","0")
       Add_Category2("Game","Danish","A")
       Add_Category2("Game","Danish","B")
@@ -3968,8 +3974,8 @@ Procedure Draw_Preview()
       Add_Category2("Game","Danish","X")
       Add_Category2("Game","Danish","Y")
       Add_Category2("Game","Danish","Z")
-      Remove_Tree_SubTitle()
-      AddGadgetItem(#DOWNLOAD_LIST,-1,"Dutch",0,1)
+    subtitle=#False
+    titlename2$="Dutch"
       Add_Category2("Game","Dutch","0")
       Add_Category2("Game","Dutch","A")
       Add_Category2("Game","Dutch","B")
@@ -3997,8 +4003,8 @@ Procedure Draw_Preview()
       Add_Category2("Game","Dutch","X")
       Add_Category2("Game","Dutch","Y")
       Add_Category2("Game","Dutch","Z")
-      Remove_Tree_SubTitle()
-      AddGadgetItem(#DOWNLOAD_LIST,-1,"Finnish",0,1)
+    subtitle=#False
+    titlename2$="Finnish"
       Add_Category2("Game","Finnish","0")
       Add_Category2("Game","Finnish","A")
       Add_Category2("Game","Finnish","B")
@@ -4026,8 +4032,8 @@ Procedure Draw_Preview()
       Add_Category2("Game","Finnish","X")
       Add_Category2("Game","Finnish","Y")
       Add_Category2("Game","Finnish","Z")
-      Remove_Tree_SubTitle()
-      AddGadgetItem(#DOWNLOAD_LIST,-1,"Swedish",0,1)
+    subtitle=#False
+    titlename2$="Swedish"
       Add_Category2("Game","Swedish","0")
       Add_Category2("Game","Swedish","A")
       Add_Category2("Game","Swedish","B")
@@ -4055,8 +4061,8 @@ Procedure Draw_Preview()
       Add_Category2("Game","Swedish","X")
       Add_Category2("Game","Swedish","Y")
       Add_Category2("Game","Swedish","Z")
-      Remove_Tree_SubTitle()
-      AddGadgetItem(#DOWNLOAD_LIST,-1,"Polish",0,1)
+    subtitle=#False
+    titlename2$="Polish"
       Add_Category2("Game","Polish","0")
       Add_Category2("Game","Polish","A")
       Add_Category2("Game","Polish","B")
@@ -4084,8 +4090,8 @@ Procedure Draw_Preview()
       Add_Category2("Game","Polish","X")
       Add_Category2("Game","Polish","Y")
       Add_Category2("Game","Polish","Z")
-      Remove_Tree_SubTitle()
-      AddGadgetItem(#DOWNLOAD_LIST,-1,"Czech",0,1)
+    subtitle=#False
+    titlename2$="Czech"
       Add_Category2("Game","Czech","0")
       Add_Category2("Game","Czech","A")
       Add_Category2("Game","Czech","B")
@@ -4113,8 +4119,8 @@ Procedure Draw_Preview()
       Add_Category2("Game","Czech","X")
       Add_Category2("Game","Czech","Y")
       Add_Category2("Game","Czech","Z")
-      Remove_Tree_SubTitle()
-      AddGadgetItem(#DOWNLOAD_LIST,-1,"Multi",0,1)
+    subtitle=#False
+    titlename2$="Multi"
       Add_Category2("Game","Multi","0")
       Add_Category2("Game","Multi","A")
       Add_Category2("Game","Multi","B")
@@ -4143,10 +4149,10 @@ Procedure Draw_Preview()
       Add_Category2("Game","Multi","Y")
       Add_Category2("Game","Multi","Z")
     EndIf
-    Remove_Tree_Title()
-    
-    AddGadgetItem(#DOWNLOAD_LIST,-1,WHD_Demo_Folder,0,0) 
-    AddGadgetItem(#DOWNLOAD_LIST,-1,"AGA",0,1)
+    title=#False
+    subtitle=#False
+    titlename$=WHD_Demo_Folder
+    titlename2$="AGA"
     Add_Category2("Demo","AGA","0")
     Add_Category2("Demo","AGA","A")
     Add_Category2("Demo","AGA","B")
@@ -4174,8 +4180,8 @@ Procedure Draw_Preview()
     Add_Category2("Demo","AGA","X")
     Add_Category2("Demo","AGA","Y")
     Add_Category2("Demo","AGA","Z")
-    Remove_Tree_SubTitle()
-    AddGadgetItem(#DOWNLOAD_LIST,-1,"ECS-OCS",0,1)
+    subtitle=#False
+    titlename2$="ECS-OCS"
     Add_Category2("Demo","ECS-OCS","0")
     Add_Category2("Demo","ECS-OCS","A")
     Add_Category2("Demo","ECS-OCS","B")
@@ -4203,10 +4209,10 @@ Procedure Draw_Preview()
     Add_Category2("Demo","ECS-OCS","X")
     Add_Category2("Demo","ECS-OCS","Y")
     Add_Category2("Demo","ECS-OCS","Z")
-    Remove_Tree_Title()
-    
-    AddGadgetItem(#DOWNLOAD_LIST,-1,WHD_Beta_Folder1,0,0) 
-    AddGadgetItem(#DOWNLOAD_LIST,-1,"AGA",0,1)
+    title=#False
+    subtitle=#False
+    titlename$=WHD_Beta_Folder1
+    titlename2$="AGA"
     Add_Category2("Beta/Game","AGA","0")
     Add_Category2("Beta/Game","AGA","A")
     Add_Category2("Beta/Game","AGA","B")
@@ -4234,8 +4240,8 @@ Procedure Draw_Preview()
     Add_Category2("Beta/Game","AGA","X")
     Add_Category2("Beta/Game","AGA","Y")
     Add_Category2("Beta/Game","AGA","Z")
-    Remove_Tree_SubTitle()
-    AddGadgetItem(#DOWNLOAD_LIST,-1,"ECS-OCS",0,1)
+    subtitle=#False
+    titlename2$="ECS-OCS"
     Add_Category2("Beta/Game","ECS-OCS","0")
     Add_Category2("Beta/Game","ECS-OCS","A")
     Add_Category2("Beta/Game","ECS-OCS","B")
@@ -4263,10 +4269,10 @@ Procedure Draw_Preview()
     Add_Category2("Beta/Game","ECS-OCS","X")
     Add_Category2("Beta/Game","ECS-OCS","Y")
     Add_Category2("Beta/Game","ECS-OCS","Z")
-    Remove_Tree_Title()
-    
-    AddGadgetItem(#DOWNLOAD_LIST,-1,WHD_Beta_Folder2,0,0) 
-    AddGadgetItem(#DOWNLOAD_LIST,-1,"AGA",0,1)
+    title=#False
+    subtitle=#False
+    titlename$=WHD_Beta_Folder2
+    titlename2$="AGA"
     Add_Category2("Beta/Demo","AGA","0")
     Add_Category2("Beta/Demo","AGA","A")
     Add_Category2("Beta/Demo","AGA","B")
@@ -4294,72 +4300,112 @@ Procedure Draw_Preview()
     Add_Category2("Beta/Demo","AGA","X")
     Add_Category2("Beta/Demo","AGA","Y")
     Add_Category2("Beta/Demo","AGA","Z")
-;   Remove_Tree_SubTitle()
-;     AddGadgetItem(#DOWNLOAD_LIST,-1,"ECS-OCS",0,1)
-;     Add_Category2("Beta/Demo","ECS-OCS","0")
-;     Add_Category2("Beta/Demo","ECS-OCS","A")
-;     Add_Category2("Beta/Demo","ECS-OCS","B")
-;     Add_Category2("Beta/Demo","ECS-OCS","C")
-;     Add_Category2("Beta/Demo","ECS-OCS","D")
-;     Add_Category2("Beta/Demo","ECS-OCS","E")
-;     Add_Category2("Beta/Demo","ECS-OCS","F")
-;     Add_Category2("Beta/Demo","ECS-OCS","G")
-;     Add_Category2("Beta/Demo","ECS-OCS","H")
-;     Add_Category2("Beta/Demo","ECS-OCS","I")
-;     Add_Category2("Beta/Demo","ECS-OCS","J")
-;     Add_Category2("Beta/Demo","ECS-OCS","K")
-;     Add_Category2("Beta/Demo","ECS-OCS","L")
-;     Add_Category2("Beta/Demo","ECS-OCS","M")
-;     Add_Category2("Beta/Demo","ECS-OCS","N")
-;     Add_Category2("Beta/Demo","ECS-OCS","O")
-;     Add_Category2("Beta/Demo","ECS-OCS","P")
-;     Add_Category2("Beta/Demo","ECS-OCS","Q")
-;     Add_Category2("Beta/Demo","ECS-OCS","R")
-;     Add_Category2("Beta/Demo","ECS-OCS","S")
-;     Add_Category2("Beta/Demo","ECS-OCS","T")
-;     Add_Category2("Beta/Demo","ECS-OCS","U")
-;     Add_Category2("Beta/Demo","ECS-OCS","V")
-;     Add_Category2("Beta/Demo","ECS-OCS","W")
-;     Add_Category2("Beta/Demo","ECS-OCS","X")
-;     Add_Category2("Beta/Demo","ECS-OCS","Y")
-;     Add_Category2("Beta/Demo","ECS-OCS","Z")
-    Remove_Tree_Title()
-    
-    AddGadgetItem(#DOWNLOAD_LIST,-1,WHD_Mags_Folder,0,0) 
-    AddGadgetItem(#DOWNLOAD_LIST,-1,"Magazines",0,1)
-    Add_Category2("Magazine","Magazine","0")
-    Add_Category2("Magazine","Magazine","A")
-    Add_Category2("Magazine","Magazine","B")
-    Add_Category2("Magazine","Magazine","C")
-    Add_Category2("Magazine","Magazine","D")
-    Add_Category2("Magazine","Magazine","E")
-    Add_Category2("Magazine","Magazine","F")
-    Add_Category2("Magazine","Magazine","G")
-    Add_Category2("Magazine","Magazine","H")
-    Add_Category2("Magazine","Magazine","I")
-    Add_Category2("Magazine","Magazine","J")
-    Add_Category2("Magazine","Magazine","K")
-    Add_Category2("Magazine","Magazine","L")
-    Add_Category2("Magazine","Magazine","M")
-    Add_Category2("Magazine","Magazine","N")
-    Add_Category2("Magazine","Magazine","O")
-    Add_Category2("Magazine","Magazine","P")
-    Add_Category2("Magazine","Magazine","Q")
-    Add_Category2("Magazine","Magazine","R")
-    Add_Category2("Magazine","Magazine","S")
-    Add_Category2("Magazine","Magazine","T")
-    Add_Category2("Magazine","Magazine","U")
-    Add_Category2("Magazine","Magazine","V")
-    Add_Category2("Magazine","Magazine","W")
-    Add_Category2("Magazine","Magazine","X")
-    Add_Category2("Magazine","Magazine","Y")
-    Add_Category2("Magazine","Magazine","Z")
-    Remove_Tree_Title()
+    subtitle=#False
+    titlename2$="ECS-OCS"
+    Add_Category2("Beta/Demo","ECS-OCS","0")
+    Add_Category2("Beta/Demo","ECS-OCS","A")
+    Add_Category2("Beta/Demo","ECS-OCS","B")
+    Add_Category2("Beta/Demo","ECS-OCS","C")
+    Add_Category2("Beta/Demo","ECS-OCS","D")
+    Add_Category2("Beta/Demo","ECS-OCS","E")
+    Add_Category2("Beta/Demo","ECS-OCS","F")
+    Add_Category2("Beta/Demo","ECS-OCS","G")
+    Add_Category2("Beta/Demo","ECS-OCS","H")
+    Add_Category2("Beta/Demo","ECS-OCS","I")
+    Add_Category2("Beta/Demo","ECS-OCS","J")
+    Add_Category2("Beta/Demo","ECS-OCS","K")
+    Add_Category2("Beta/Demo","ECS-OCS","L")
+    Add_Category2("Beta/Demo","ECS-OCS","M")
+    Add_Category2("Beta/Demo","ECS-OCS","N")
+    Add_Category2("Beta/Demo","ECS-OCS","O")
+    Add_Category2("Beta/Demo","ECS-OCS","P")
+    Add_Category2("Beta/Demo","ECS-OCS","Q")
+    Add_Category2("Beta/Demo","ECS-OCS","R")
+    Add_Category2("Beta/Demo","ECS-OCS","S")
+    Add_Category2("Beta/Demo","ECS-OCS","T")
+    Add_Category2("Beta/Demo","ECS-OCS","U")
+    Add_Category2("Beta/Demo","ECS-OCS","V")
+    Add_Category2("Beta/Demo","ECS-OCS","W")
+    Add_Category2("Beta/Demo","ECS-OCS","X")
+    Add_Category2("Beta/Demo","ECS-OCS","Y")
+    Add_Category2("Beta/Demo","ECS-OCS","Z")
+    title=#False
+    subtitle=#False
+    titlename$=WHD_Mags_Folder
+    titlename2$="AGA"
+    Add_Category2("Magazine","AGA","0")
+    Add_Category2("Magazine","AGA","A")
+    Add_Category2("Magazine","AGA","B")
+    Add_Category2("Magazine","AGA","C")
+    Add_Category2("Magazine","AGA","D")
+    Add_Category2("Magazine","AGA","E")
+    Add_Category2("Magazine","AGA","F")
+    Add_Category2("Magazine","AGA","G")
+    Add_Category2("Magazine","AGA","H")
+    Add_Category2("Magazine","AGA","I")
+    Add_Category2("Magazine","AGA","J")
+    Add_Category2("Magazine","AGA","K")
+    Add_Category2("Magazine","AGA","L")
+    Add_Category2("Magazine","AGA","M")
+    Add_Category2("Magazine","AGA","N")
+    Add_Category2("Magazine","AGA","O")
+    Add_Category2("Magazine","AGA","P")
+    Add_Category2("Magazine","AGA","Q")
+    Add_Category2("Magazine","AGA","R")
+    Add_Category2("Magazine","AGA","S")
+    Add_Category2("Magazine","AGA","T")
+    Add_Category2("Magazine","AGA","U")
+    Add_Category2("Magazine","AGA","V")
+    Add_Category2("Magazine","AGA","W")
+    Add_Category2("Magazine","AGA","X")
+    Add_Category2("Magazine","AGA","Y")
+    Add_Category2("Magazine","AGA","Z")
+    subtitle=#False
+    titlename2$="ECS-OCS"
+    Add_Category2("Magazine","ECS-OCS","0")
+    Add_Category2("Magazine","ECS-OCS","A")
+    Add_Category2("Magazine","ECS-OCS","B")
+    Add_Category2("Magazine","ECS-OCS","C")
+    Add_Category2("Magazine","ECS-OCS","D")
+    Add_Category2("Magazine","ECS-OCS","E")
+    Add_Category2("Magazine","ECS-OCS","F")
+    Add_Category2("Magazine","ECS-OCS","G")
+    Add_Category2("Magazine","ECS-OCS","H")
+    Add_Category2("Magazine","ECS-OCS","I")
+    Add_Category2("Magazine","ECS-OCS","J")
+    Add_Category2("Magazine","ECS-OCS","K")
+    Add_Category2("Magazine","ECS-OCS","L")
+    Add_Category2("Magazine","ECS-OCS","M")
+    Add_Category2("Magazine","ECS-OCS","N")
+    Add_Category2("Magazine","ECS-OCS","O")
+    Add_Category2("Magazine","ECS-OCS","P")
+    Add_Category2("Magazine","ECS-OCS","Q")
+    Add_Category2("Magazine","ECS-OCS","R")
+    Add_Category2("Magazine","ECS-OCS","S")
+    Add_Category2("Magazine","ECS-OCS","T")
+    Add_Category2("Magazine","ECS-OCS","U")
+    Add_Category2("Magazine","ECS-OCS","V")
+    Add_Category2("Magazine","ECS-OCS","W")
+    Add_Category2("Magazine","ECS-OCS","X")
+    Add_Category2("Magazine","ECS-OCS","Y")
+    Add_Category2("Magazine","ECS-OCS","Z")
   EndIf
   
   FreeList(Sort_List())
   FreeList(Cat_List())
   
+  count=CountGadgetItems(#DOWNLOAD_LIST)
+  
+  Protected i
+  
+  For i=0 To count-1
+    If GetGadgetItemAttribute(#DOWNLOAD_LIST,i,#PB_Tree_SubLevel)=0
+      If GetGadgetItemAttribute(#DOWNLOAD_LIST,i+1,#PB_Tree_SubLevel)=0
+        Debug GetGadgetItemText(#DOWNLOAD_LIST,i,0)
+      EndIf      
+    EndIf
+  Next
+    
   Resume_Gadget(#DOWNLOAD_LIST)
   
   SetWindowTitle(#DOWNLOAD_WINDOW,old_title)
@@ -6347,9 +6393,9 @@ ForEver
 
 End
 ; IDE Options = PureBasic 6.11 LTS (Windows - x64)
-; CursorPosition = 3597
-; FirstLine = 1152
-; Folding = AAAAAAAAg5K7
+; CursorPosition = 221
+; FirstLine = 204
+; Folding = AAAAAAAAAAA+
 ; Optimizer
 ; EnableThread
 ; EnableXP
