@@ -224,6 +224,8 @@ Global Version.s="1.4"
 ; 'Update Files' window only shows if a file is actually downloaded from the 'Download' window.
 ; CD32 games now are categorised as AGA.
 ; Fixed download preview list.
+; Added AGA/ECS data to Magazines. Files will be split if category is selected on download.
+; Fixed FTP download not creating all Category (0-Z) sub folders.
 ;
 ;============================================
 ; To Do List
@@ -348,6 +350,7 @@ Enumeration
   #WHD_SORT_COMBO
   #WHD_CATEGORY_CHECK
   #WHD_LANGUAGE_COMBO
+  #PARENT_TXT
   
   #GAME_OPTION
   #DEMO_OPTION
@@ -1070,6 +1073,7 @@ Procedure Disable_Gadgets(bool.b)
   DisableGadget(#BETA_GAME_OPTION,bool)
   DisableGadget(#BETA_DEMO_OPTION,bool)
   DisableGadget(#MAGS_OPTION,bool)
+  DisableGadget(#PARENT_TXT,bool)
   
   Resume_Window(#MAIN_WINDOW)
   
@@ -3020,17 +3024,13 @@ Macro Add_Category2(ftype,category,category2)
       ForEach Sort_List()
         If Sort_Type=2 
           AddGadgetItem(#DOWNLOAD_LIST,-1,Sort_List()\Sort_Name,0,2)
-          SelectElement(Down_List(),Sort_List()\Sort_Index)
-          Down_List()\Down_SubFolder_1=whd_out_folder
-          Down_List()\Down_SubFolder_2=""
-          Down_List()\Down_SubFolder_3=category2
         Else
           AddGadgetItem(#DOWNLOAD_LIST,-1,Sort_List()\Sort_Name,0,3)
-          SelectElement(Down_List(),Sort_List()\Sort_Index)
-          Down_List()\Down_SubFolder_1=whd_out_folder
-          Down_List()\Down_SubFolder_2=category   
-          Down_List()\Down_SubFolder_3=category2
-        EndIf
+        EndIf  
+        SelectElement(Down_List(),Sort_List()\Sort_Index)
+        Down_List()\Down_SubFolder_1=whd_out_folder
+        Down_List()\Down_SubFolder_2=category   
+        Down_List()\Down_SubFolder_3=category2
       Next    
     EndIf
   EndIf
@@ -3039,19 +3039,11 @@ Macro Add_Category2(ftype,category,category2)
     If ListSize(Sort_List())<=255 And ListSize(Sort_List())>0
       AddGadgetItem(#DOWNLOAD_LIST,-1,category2,0,2)
       ForEach Sort_List()
-        If ftype="Magazine"
-          AddGadgetItem(#DOWNLOAD_LIST,-1,Sort_List()\Sort_Name,0,2)
-          SelectElement(Down_List(),Sort_List()\Sort_Index)
-          Down_List()\Down_SubFolder_1=whd_out_folder
-          Down_List()\Down_SubFolder_2=""
-          Down_List()\Down_SubFolder_3=""
-        Else
-          AddGadgetItem(#DOWNLOAD_LIST,-1,Sort_List()\Sort_Name,0,3)
-          SelectElement(Down_List(),Sort_List()\Sort_Index)
-          Down_List()\Down_SubFolder_1=whd_out_folder
-          Down_List()\Down_SubFolder_2=category
-          Down_List()\Down_SubFolder_3=category2
-        EndIf
+        AddGadgetItem(#DOWNLOAD_LIST,-1,Sort_List()\Sort_Name,0,3)
+        SelectElement(Down_List(),Sort_List()\Sort_Index)
+        Down_List()\Down_SubFolder_1=whd_out_folder
+        Down_List()\Down_SubFolder_2=category
+        Down_List()\Down_SubFolder_3=category2
       Next    
     EndIf
     
@@ -3070,13 +3062,8 @@ Macro Add_Category2(ftype,category,category2)
         AddGadgetItem(#DOWNLOAD_LIST,-1,Sort_List()\Sort_Name,0,3)
         SelectElement(Down_List(),Sort_List()\Sort_Index)
         Down_List()\Down_SubFolder_1=whd_out_folder
-        If ftype="Magazine"
-          Down_List()\Down_SubFolder_2=category2
-          Down_List()\Down_SubFolder_3=""
-        Else
-          Down_List()\Down_SubFolder_2=category
-          Down_List()\Down_SubFolder_3=down_folder
-        EndIf
+        Down_List()\Down_SubFolder_2=category
+        Down_List()\Down_SubFolder_3=down_folder
         count+1
       Next
     EndIf
@@ -3130,13 +3117,11 @@ Macro Add_Category(ftype,category,category2)
     If ListSize(Sort_List())>0
       AddGadgetItem(#DOWNLOAD_LIST,-1,category,0,1)
       ForEach Sort_List()     
-
           AddGadgetItem(#DOWNLOAD_LIST,-1,Sort_List()\Sort_Name,0,2)
           SelectElement(Down_List(),Sort_List()\Sort_Index)
           Down_List()\Down_SubFolder_1=whd_out_folder
           Down_List()\Down_SubFolder_2=category   
           Down_List()\Down_SubFolder_3=category2
-
       Next    
     EndIf
   EndIf
@@ -4684,6 +4669,16 @@ Procedure Download_FTP()
             Down_Path=WHD_Folder+Down_List()\Down_SubFolder_1+Chr(92)+Down_List()\Down_SubFolder_2+Chr(92)
           EndIf
           
+          If Down_List()\Down_SubFolder_3>""
+            If FileSize(WHD_Folder+Down_List()\Down_SubFolder_1+Chr(92)+Down_List()\Down_SubFolder_2)<>-2 
+              CreateDirectory(WHD_Folder+Down_List()\Down_SubFolder_1+Chr(92)+Down_List()\Down_SubFolder_2)
+            EndIf
+            If FileSize(WHD_Folder+Down_List()\Down_SubFolder_1+Chr(92)+Down_List()\Down_SubFolder_2+Chr(92)+Down_List()\Down_SubFolder_3)<>-2 
+              CreateDirectory(WHD_Folder+Down_List()\Down_SubFolder_1+Chr(92)+Down_List()\Down_SubFolder_2+Chr(92)+Down_List()\Down_SubFolder_3)
+            EndIf
+            Down_Path=WHD_Folder+Down_List()\Down_SubFolder_1+Chr(92)+Down_List()\Down_SubFolder_2+Chr(92)+Down_List()\Down_SubFolder_3+Chr(92)
+          EndIf
+          
           Down_Path+Down_List()\Down_Name
           
           If FTPDownload(hConnect,Down_List()\Down_Name,Down_Path)  
@@ -5409,28 +5404,28 @@ Procedure Main_Window()
   
   ScrollAreaGadget(#PB_Any,455,175,315,113,295,160,-1,#PB_ScrollArea_BorderLess)
   
-  TextGadget(#PB_Any,0,6,40,22,"Parent")  
-  StringGadget(#WHD_MAIN_STRING,55,5,157,22,WHD_Folder,#PB_String_ReadOnly)
+  TextGadget(#PARENT_TXT,0,7,40,22,"Parent",#PB_Text_Center)  
+  StringGadget(#WHD_MAIN_STRING,40,5,172,22,WHD_Folder,#PB_String_ReadOnly)
   ButtonGadget(#WHD_OPEN_PATH_BUTTON,215,5,40,22,"Open")
   ButtonGadget(#WHD_SET_PATH_BUTTON,255,5,40,22,"Set")
   
-  CheckBoxGadget(#GAME_OPTION,0,30,55,20,"Games")
+  CheckBoxGadget(#GAME_OPTION,0,32,55,20,"Games")
   StringGadget(#WHD_GAME_STRING,60,30,190,22,WHD_Game_Folder)
   ButtonGadget(#WHD_OPEN_GAME_BUTTON,255,30,40,22,"Open") 
   
-  CheckBoxGadget(#DEMO_OPTION,0,55,55,20,"Demos")
+  CheckBoxGadget(#DEMO_OPTION,0,57,55,20,"Demos")
   StringGadget(#WHD_DEMO_STRING,60,55,190,22,WHD_Demo_Folder)
   ButtonGadget(#WHD_OPEN_DEMO_BUTTON,255,55,40,22,"Open")
   
-  CheckBoxGadget(#BETA_GAME_OPTION,0,80,55,20,"Gameß")
+  CheckBoxGadget(#BETA_GAME_OPTION,0,82,55,20,"Gameß")
   StringGadget(#WHD_BETA_GAME_STRING,60,80,190,22,WHD_Beta_Folder1)
   ButtonGadget(#WHD_OPEN_BETA_GAME_BUTTON,255,80,40,22,"Open")
   
-  CheckBoxGadget(#BETA_DEMO_OPTION,0,105,55,20,"Demoß")
+  CheckBoxGadget(#BETA_DEMO_OPTION,0,107,55,20,"Demoß")
   StringGadget(#WHD_BETA_DEMO_STRING,60,105,190,22,WHD_Beta_Folder2)
   ButtonGadget(#WHD_OPEN_BETA_DEMO_BUTTON,255,105,40,22,"Open")
   
-  CheckBoxGadget(#MAGS_OPTION,0,130,55,20,"Mags")  
+  CheckBoxGadget(#MAGS_OPTION,0,132,55,20,"Mags")  
   StringGadget(#WHD_MAGS_STRING,60,130,190,22,WHD_Mags_Folder)
   ButtonGadget(#WHD_OPEN_MAGS_BUTTON,255,130,40,22,"Open")
   
@@ -6393,17 +6388,17 @@ ForEver
 
 End
 ; IDE Options = PureBasic 6.11 LTS (Windows - x64)
-; CursorPosition = 221
-; FirstLine = 204
-; Folding = AAAAAAAAAAA+
+; CursorPosition = 225
+; FirstLine = 202
+; Folding = AAAgAAAAwgB-
 ; Optimizer
 ; EnableThread
 ; EnableXP
 ; DPIAware
 ; UseIcon = boing.ico
-; Executable = E:\WHDLoadTool\WHDLoadTool_x86.exe
+; Executable = E:\WHDLoadTool\WHDLoadTool.exe
 ; CurrentDirectory = E:\WHDLoadTool\
-; Compiler = PureBasic 6.11 LTS Beta 1 (Windows - x64)
+; Compiler = PureBasic 6.11 LTS (Windows - x64)
 ; Debugger = Standalone
 ; Warnings = Display
 ; IncludeVersionInfo
