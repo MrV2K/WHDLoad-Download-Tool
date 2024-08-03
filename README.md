@@ -1,4 +1,5 @@
-![downloadtool](https://github.com/MrV2K/WHDLoad-Download-Tool/assets/71010565/a3991cc7-f92d-472b-9c5f-09d8d916c7bd)
+![image](https://github.com/user-attachments/assets/32998190-65c9-4e27-99e0-7eee4a9f2994)
+
 
 
 # WHDLoad-Download-Tool
