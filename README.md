@@ -1,6 +1,4 @@
-![image](https://github.com/user-attachments/assets/32998190-65c9-4e27-99e0-7eee4a9f2994)
-
-
+<img width="1096" height="829" alt="image" src="https://github.com/user-attachments/assets/65b0a6c8-7673-4c51-904d-934a55f910db" />
 
 # WHDLoad-Download-Tool
 WHDLoad-Download-Tool is a tool to help manage and download Retroplay's WHDLoad archives.
