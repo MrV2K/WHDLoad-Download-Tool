@@ -268,20 +268,23 @@ Global Version.s="1.8"
 ;============================================
 ;
 ; Converted turran http web page parser to regular expressions to fix future page updates.
+; Fixed bug in download by Category (0-Z) that didn't create all the right paths for output.
+; Moved FAT32 checkbox to sort panel and adjusted the download window gadgets.
+; Fixed bug in Make Folder that prevented all the category folders being created.
+; Added FAT32 support to Make Folder function.
 ;
 ;============================================
 ; To Do List
 ;============================================
 ;
 ; Keep folder structure
-; Fat32 folder support for the Make Folder Button.
 ; Make HDF button and options.
-; Double check the folder creation routines.
 ;
 ;============================================
-;
+
 
 EnableExplicit
+
 
 ;- ############### Imports
 
@@ -347,7 +350,6 @@ Enumeration
   #DOWNLOAD_LIST
   #DOWNLOAD_YES
   #DOWNLOAD_NO
-  #DOWNLOAD_A500MINI
   #DOWNLOAD_SAVE
   #DOWNLOAD_EXPAND
   
@@ -399,6 +401,7 @@ Enumeration
   #WHD_OPEN_BETA_GAME_BUTTON
   #WHD_OPEN_BETA_DEMO_BUTTON
   #WHD_SORT_COMBO
+  #WHD_FAT32_CHECK
   #WHD_CATEGORY_CHECK
   #WHD_LANGUAGE_COMBO
   #PARENT_TXT
@@ -470,7 +473,9 @@ Enumeration
   
 EndEnumeration
 
+
 ;- ############### Structures
+
 
 Structure Game_Data
   File_Name.s
@@ -677,7 +682,9 @@ Structure Temp_Struct
   List z.s()
 EndStructure
 
+
 ;- ############### Lists
+
 
 Global NewList File_List.s()
 Global NewList Game_List.Game_Data()
@@ -691,7 +698,9 @@ Global NewList List_Games.s()
 Global NewList Editor_List.Edit_Data()
 Global NewList FTP_Dir_Files.s()  
 
+
 ;- ############### Global Variables
+
 
 Global Path.s, Path2.s, Count.i, Folder.s, FCount.f
 Global Home_Path.s=GetCurrentDirectory()
@@ -707,7 +716,7 @@ Global Avail_Games.i=0
 Global Old_Pos.i
 Global Sort_Type.i=0
 Global Split_Languages.i=0
-Global A500Mini.b=#False
+Global FAT32.b=#False
 Global Slash$ ; For cross platform path compatibility
 
 Global FTP_Folder.s
@@ -906,7 +915,7 @@ Macro Default_Settings()
   Avail_Games=0
   Sort_Type=0
   Split_Languages=0
-  A500Mini=#False
+  FAT32-#False
   
 EndMacro
 
@@ -937,6 +946,7 @@ Macro Update_Gadgets()
   SetGadgetState(#DOWNLOAD_TYPE_COMBO,Download_Type)
   SetGadgetState(#WHD_SORT_COMBO,Sort_Type)
   SetGadgetState(#WHD_LANGUAGE_COMBO,Split_Languages)
+  SetGadgetState(#WHD_FAT32_CHECK,FAT32)
   
 EndMacro
 
@@ -1110,9 +1120,7 @@ Procedure Disable_Gadgets(bool.b)
   DisableGadget(#LIST_EDIT_BUTTON,bool)
   DisableGadget(#LIST_LOAD_BUTTON,bool)
   DisableGadget(#LIST_SAVE_BUTTON,bool)
-  
-  ;DisableGadget(#SAVE_PREFS_BUTTON,bool)
-  
+ 
   DisableGadget(#WHD_MAIN_STRING,bool)
   DisableGadget(#WHD_GAME_STRING,bool)
   DisableGadget(#WHD_OPEN_GAME_BUTTON,bool)
@@ -1127,9 +1135,12 @@ Procedure Disable_Gadgets(bool.b)
   DisableGadget(#WHD_OPEN_PATH_BUTTON,bool)
   DisableGadget(#WHD_SET_PATH_BUTTON,bool)
   DisableGadget(#WHD_SORT_COMBO,bool)
+  DisableGadget(#WHD_FAT32_CHECK,bool)
+  
   If Sort_Type=2
     DisableGadget(#WHD_LANGUAGE_COMBO,bool)
   EndIf
+  
   DisableGadget(#GAME_OPTION,bool)
   DisableGadget(#DEMO_OPTION,bool)
   DisableGadget(#BETA_GAME_OPTION,bool)
@@ -1350,18 +1361,27 @@ Procedure Make_Folder()
     Center_Console()
     Remove_Console_Close()
     
+    ; create a list of files in the whdload folder
+    
     List_Files_Recursive(WHD_Folder,File_List(),"*.*")
+    
+    ; Add the filtered list filenames to game_map
     
     ForEach Filtered_List()
       SelectElement(Game_List(),Filtered_List())
       Game_Map(Game_List()\File_Name)=ListIndex(Game_List())
     Next
     
+    ; Compare the file list to the game map and add any matches to the download list
+    
     ForEach File_List()
+      
       If FindMapElement(Game_Map(), GetFilePart(File_List()))
         SelectElement(Game_List(),Game_Map())
         AddElement(Down_List())
         Down_List()\Down_Name=Game_List()\File_Name
+        Down_List()\Down_Type=Game_List()\File_Type
+        
         If Sort_Type=0
           Down_List()\Down_FTP_Folder=File_List()
           Down_List()\Down_Name=Game_List()\File_Name
@@ -1370,50 +1390,120 @@ Procedure Make_Folder()
           If Game_List()\File_Beta_Demo : Down_List()\Down_SubFolder_1="Beta-Demo\" : EndIf
           Down_List()\Down_Path=Out_Folder+Down_List()\Down_SubFolder_1+Down_List()\Down_Name 
         EndIf
+        
         If Sort_Type=1
           Down_List()\Down_FTP_Folder=File_List()
           Down_List()\Down_SubFolder_1=Game_List()\File_Type+"\"
           If Game_List()\File_Beta_Game : Down_List()\Down_SubFolder_1="Beta-Game\" : EndIf
-          If Game_List()\File_Beta_Game : Down_List()\Down_SubFolder_1="Beta-Demo\" : EndIf
+          If Game_List()\File_Beta_Demo : Down_List()\Down_SubFolder_1="Beta-Demo\" : EndIf
           Down_List()\Down_SubFolder_2=Game_List()\File_SubFolder+"\"
           Down_List()\Down_Path=Out_Folder+Down_List()\Down_SubFolder_1+Down_List()\Down_SubFolder_2+Game_List()\File_Name
         EndIf
+        
         If Sort_Type=2
           Down_List()\Down_FTP_Folder=File_List()
-          If Game_List()\File_Type<>"Magazine"
+          If Game_List()\File_Type<>"Magazine" ; Magazines don't need a sub folder
             Down_List()\Down_SubFolder_1=Game_List()\File_Type+"\"
             If Game_List()\File_Beta_Game : Down_List()\Down_SubFolder_1="Beta-Game\" : EndIf
-            If Game_List()\File_Beta_Game : Down_List()\Down_SubFolder_1="Beta-Demo\" : EndIf
+            If Game_List()\File_Beta_Demo : Down_List()\Down_SubFolder_1="Beta-Demo\" : EndIf
             Down_List()\Down_SubFolder_2=Game_List()\File_Genre+"\"
             Down_List()\Down_Path=Out_Folder+Down_List()\Down_SubFolder_1+Down_List()\Down_SubFolder_2+Game_List()\File_Name
           Else
             Down_List()\Down_SubFolder_1=Game_List()\File_Type+"\"
             If Game_List()\File_Beta_Game : Down_List()\Down_SubFolder_1="Beta-Game\" : EndIf
-            If Game_List()\File_Beta_Game : Down_List()\Down_SubFolder_1="Beta-Demo\" : EndIf
+            If Game_List()\File_Beta_Demo : Down_List()\Down_SubFolder_1="Beta-Demo\" : EndIf
             Down_List()\Down_Path=Out_Folder+Down_List()\Down_SubFolder_1+Game_List()\File_Name
           EndIf
         EndIf
+        
         If Sort_Type=3
           Down_List()\Down_FTP_Folder=File_List()
-          If Game_List()\File_Type<>"Magazine"
+          If Game_List()\File_Type<>"Magazine" ; Magazines don't need a sub folder
             Down_List()\Down_SubFolder_1=Game_List()\File_Type+"\"
             If Game_List()\File_Beta_Game : Down_List()\Down_SubFolder_1="Beta-Game\" : EndIf
-            If Game_List()\File_Beta_Game : Down_List()\Down_SubFolder_1="Beta-Demo\" : EndIf
+            If Game_List()\File_Beta_Demo : Down_List()\Down_SubFolder_1="Beta-Demo\" : EndIf
             Down_List()\Down_SubFolder_2=Game_List()\File_Genre+"\"
             Down_List()\Down_SubFolder_3=Game_List()\File_SubFolder+"\"
             Down_List()\Down_Path=Out_Folder+Down_List()\Down_SubFolder_1+Down_List()\Down_SubFolder_2+Down_List()\Down_SubFolder_3+Game_List()\File_Name
           Else
             Down_List()\Down_SubFolder_1=Game_List()\File_Type+"\"
             If Game_List()\File_Beta_Game : Down_List()\Down_SubFolder_1="Beta-Game\" : EndIf
-            If Game_List()\File_Beta_Game : Down_List()\Down_SubFolder_1="Beta-Demo\" : EndIf
+            If Game_List()\File_Beta_Demo : Down_List()\Down_SubFolder_1="Beta-Demo\" : EndIf
             Down_List()\Down_SubFolder_2=Game_List()\File_SubFolder+"\"
             Down_List()\Down_Path=Out_Folder+Down_List()\Down_SubFolder_1+Down_List()\Down_SubFolder_2+Game_List()\File_Name
           EndIf
         EndIf
+        
       EndIf  
+      
     Next
     
-    If ListSize(Down_List())>0    
+    ; Split output folders if fat32 is selected.
+    
+    If FAT32
+      
+      Protected NewMap Sort_Map.s()
+      Protected NewList fat32_list.s()
+      
+      ForEach Down_List()
+        Sort_Map(GetPathPart(Down_List()\Down_Path))=GetPathPart(Down_List()\Down_Path)
+      Next
+      
+      count=0
+      
+      ForEach Sort_Map()
+        ForEach Down_List()
+          If Sort_Map()=GetPathPart(Down_List()\Down_Path) : count+1 : EndIf
+          If count=255 
+            AddElement(fat32_list())
+            fat32_list()=GetPathPart(Down_List()\Down_Path) 
+          EndIf
+        Next
+        count=0
+      Next
+      
+      Protected count2
+      
+      count=1
+      
+      If ListSize(fat32_list())>0
+        ForEach fat32_list()
+          count2=0
+          count=1
+          ForEach Down_List()
+            If Down_List()\Down_Type="Magazine" : Continue : EndIf
+            If FindString(Down_List()\Down_Path,fat32_list())
+              If count2>=255
+                If Mod(count2,255)=0 : count+1 : EndIf
+              EndIf
+              If Sort_Type=0
+                Down_List()\Down_SubFolder_1=InsertString(Down_List()\Down_SubFolder_1,"("+count+")", Len(Down_List()\Down_SubFolder_1))
+                Down_List()\Down_Path=Out_Folder+Down_List()\Down_SubFolder_1+Down_List()\Down_Name
+              EndIf
+              If Sort_Type=1
+                Down_List()\Down_SubFolder_2=InsertString(Down_List()\Down_SubFolder_2,"("+count+")", Len(Down_List()\Down_SubFolder_2))
+                Down_List()\Down_Path=Out_Folder+Down_List()\Down_SubFolder_1+Down_List()\Down_SubFolder_2+Down_List()\Down_Name
+              EndIf
+              If Sort_Type=2
+                Down_List()\Down_SubFolder_2=InsertString(Down_List()\Down_SubFolder_2,"("+count+")", Len(Down_List()\Down_SubFolder_2))
+                Down_List()\Down_Path=Out_Folder+Down_List()\Down_SubFolder_1+Down_List()\Down_SubFolder_2+Down_List()\Down_Name
+              EndIf
+              If Sort_Type=3
+                Down_List()\Down_SubFolder_3=InsertString(Down_List()\Down_SubFolder_3,"("+count+")", Len(Down_List()\Down_SubFolder_3))
+                Down_List()\Down_Path=Out_Folder+Down_List()\Down_SubFolder_1+Down_List()\Down_SubFolder_2+Down_List()\Down_SubFolder_3+Down_List()\Down_Name
+              EndIf
+              count2+1
+            EndIf
+          Next
+        Next
+      EndIf
+      
+      FreeMap(Sort_Map())
+      FreeList(fat32_list())
+      
+    EndIf
+    
+    If ListSize(Down_List())>0  
       
       path="Making new folder..."+Chr(10)+Chr(10)
       
@@ -1428,6 +1518,8 @@ Procedure Make_Folder()
         If Split_Languages=1 : path+"Languages : Split"+Chr(10) : EndIf
         If Split_Languages=0 : path+"Languages : Ignore"+Chr(10) : EndIf
       EndIf
+      
+      If FAT32 : path+"Max 255 files per folder"+Chr(10) : EndIf
       
       If MessageRequester("Warning!",path+Chr(10)+"Copy "+Str(ListSize(Down_List()))+" files?",#PB_MessageRequester_YesNo|#PB_MessageRequester_Warning)=#PB_MessageRequester_Yes 
         
@@ -1894,6 +1986,7 @@ Procedure Save_Prefs(p_path.s)
   WritePreferenceString("WHD_Beta_Demo",WHD_Beta_Folder2)
   WritePreferenceString("WHD_Mags",WHD_Mags_Folder)
   WritePreferenceInteger("WHD_Sort",Sort_Type)
+  WritePreferenceInteger("WHD_FAT32",FAT32)
   WritePreferenceInteger("WHD_Language_Split",Split_Languages)
   
   PreferenceComment("")
@@ -1995,6 +2088,7 @@ Procedure Load_Prefs(p_path.s)
     WHD_Beta_Folder2=ReadPreferenceString("WHD_Beta_Demo",WHD_Beta_Folder2)
     WHD_Mags_Folder=ReadPreferenceString("WHD_Mags",WHD_Mags_Folder)
     Sort_Type=ReadPreferenceInteger("WHD_Sort",Sort_Type)
+    FAT32=ReadPreferenceInteger("WHD_FAT32",FAT32)
     Split_Languages=ReadPreferenceInteger("WHD_Language_Split",Split_Languages)
     
     PreferenceGroup("Filter")
@@ -2726,20 +2820,7 @@ Procedure Scan_HTTP()
   info$=HTTPInfo(response,#PB_HTTP_Response)
   
   ExtractLinksFromHTMLFile(info$)
-  
-;   count=CountString(info$,#LF$)
-  
-;   For i=1 To count+1
-;     input$=StringField(info$,i,#LF$)
-;     If FindString(input$,"zip",#PB_String_NoCase)
-;       AddElement(FTP_Dir_Files())
-;       path$=Trim(input$)
-;       path$=StringField(path$,6,#DOUBLEQUOTE$)
-;       path$=ReplaceString(path$,"amp;","")
-;       FTP_Dir_Files()=path$
-;     EndIf
-;   Next
-  
+    
   PrintNCol("Checking for update...",11,0)
   PrintN("")
   PrintNCol("Reading "+HTTP_Server,2,0)
@@ -3140,7 +3221,7 @@ Macro Add_Category2(ftype,category,category2)
     found=#True
   EndIf
   
-  If A500Mini=#False 
+  If FAT32=#False 
     If ListSize(Sort_List())>0
       AddGadgetItem(#DOWNLOAD_LIST,-1,category2,0,2)
       ForEach Sort_List()
@@ -3157,7 +3238,7 @@ Macro Add_Category2(ftype,category,category2)
     EndIf
   EndIf
   
-  If A500Mini=#True    
+  If FAT32=#True    
     If ListSize(Sort_List())<=255 And ListSize(Sort_List())>0
       AddGadgetItem(#DOWNLOAD_LIST,-1,category2,0,2)
       ForEach Sort_List()
@@ -3235,7 +3316,7 @@ Macro Add_Category(ftype,category,category2)
     found=#True
   EndIf
   
-  If A500Mini=#False 
+  If FAT32=#False 
     If ListSize(Sort_List())>0
       AddGadgetItem(#DOWNLOAD_LIST,-1,category,0,1)
       ForEach Sort_List()     
@@ -3248,7 +3329,7 @@ Macro Add_Category(ftype,category,category2)
     EndIf
   EndIf
   
-  If A500Mini=#True    
+  If FAT32=#True    
     If ListSize(Sort_List())<=255 And ListSize(Sort_List())>0
       AddGadgetItem(#DOWNLOAD_LIST,-1,category,0,1)
       ForEach Sort_List()
@@ -3494,7 +3575,7 @@ Procedure Draw_Preview()
   
   If Sort_Type=0
     
-    If A500Mini=#False
+    If FAT32=#False
       
       Add_Unsorted("Game",WHD_Game_Folder)
       Add_Unsorted("Demo",WHD_Demo_Folder)
@@ -3505,7 +3586,7 @@ Procedure Draw_Preview()
     EndIf
     
     
-    If A500Mini=#True
+    If FAT32=#True
       
       Add_Unsorted_A500("Game",WHD_Game_Folder)
       Add_Unsorted_A500("Demo",WHD_Demo_Folder)
@@ -3845,23 +3926,18 @@ Procedure.b Download_Preview()
   
   Protected oldgadgetlist.l, proc_return.b
   
-  If OpenWindow(#DOWNLOAD_WINDOW,0,0,300,470,"File Download ("+Str(ListSize(Down_List()))+" Files)",#PB_Window_Tool|#PB_Window_WindowCentered,WindowID(#MAIN_WINDOW))
+  If OpenWindow(#DOWNLOAD_WINDOW,0,0,300,435,"File Download ("+Str(ListSize(Down_List()))+" Files)",#PB_Window_Tool|#PB_Window_WindowCentered,WindowID(#MAIN_WINDOW))
     
     Pause_Window(#DOWNLOAD_WINDOW)
     
     oldgadgetlist=UseGadgetList(WindowID(#DOWNLOAD_WINDOW))
     
     TreeGadget(#DOWNLOAD_LIST,0,0,300,400)
-    CheckBoxGadget(#DOWNLOAD_A500MINI,5,402,200,30,"255 Files Per Folder (FAT32)")
-    CheckBoxGadget(#DOWNLOAD_EXPAND,210,402 ,95,30,"Expand Tree")
-    ButtonGadget(#DOWNLOAD_YES,5,435,95,30,"Start")
-    ButtonGadget(#DOWNLOAD_NO,105,435,95,30,"Cancel")
-    ButtonGadget(#DOWNLOAD_SAVE,205,435,90,30,"Save Text")
-    
-    SetGadgetState(#DOWNLOAD_A500MINI,A500Mini)
-    
-    A500Mini=#False
-    SetGadgetState(#DOWNLOAD_A500MINI,A500Mini)
+
+    ButtonGadget(#DOWNLOAD_YES,5,402,65,30,"Start")
+    ButtonGadget(#DOWNLOAD_NO,70,402,65,30,"Cancel")
+    ButtonGadget(#DOWNLOAD_SAVE,135,402,65,30,"Save Text")
+    CheckBoxGadget(#DOWNLOAD_EXPAND,210,402 ,95,30,"Expand Tree")    
     
     Resume_Window(#DOWNLOAD_WINDOW)  
     
@@ -3877,11 +3953,7 @@ Procedure.b Download_Preview()
         Case #PB_Event_Gadget
           
           Select Gadget
-              
-            Case #DOWNLOAD_A500MINI
-              A500Mini=GetGadgetState(#DOWNLOAD_A500MINI)
-              Draw_Preview()
-              
+                            
             Case #DOWNLOAD_EXPAND
               If GetGadgetState(#DOWNLOAD_EXPAND)=#PB_Checkbox_Checked
                 Pause_Gadget(#DOWNLOAD_LIST)
@@ -4460,7 +4532,7 @@ Procedure Help_Window()
   output$+LSet(Version,5)
   output$+"      ║"+#CRLF$
   output$+"                ║                                          ║"+#CRLF$
-  output$+"                ║         © 2025 Paul Vince (MrV2k)        ║"+#CRLF$
+  output$+"                ║         © 2026 Paul Vince (MrV2k)        ║"+#CRLF$
   output$+"                ║                                          ║"+#CRLF$
   output$+"                ╚══════════════════════════════════════════╝"+#CRLF$
   output$+#CRLF$+#CRLF$
@@ -4568,6 +4640,8 @@ Procedure Help_Window()
   output$+"                       them by category and then alphabetically."+#CRLF$
   output$+#CRLF$
   output$+"When you select 'Category' or 'Category (0-Z), the second sorting drop box will become available. In this box you can set whether non-english archives are split into their own folders or not."+#CRLF$
+  output$+#CRLF$
+  output$+"The FAT32 button will set the maximum files in any download folder to 254 as FAT32 doesn't support more than 255 files in a folder ."+#CRLF$
   output$+#CRLF$
   output$+"All path information and sorting settings are saved in the preference files. "+#CRLF$
   output$+#CRLF$
@@ -4839,9 +4913,9 @@ Procedure Main_Window()
   
   SetGadgetFont(#MAIN_LIST,FontID(#MAIN_FONT))
   
-  FrameGadget(#PB_Any,445,0,330,153,"Server Settings")
+  FrameGadget(#PB_Any,445,0,330,153,"Server Settings",#PB_Frame_Container)
   
-  ScrollAreaGadget(#PB_Any,455,17,315,133,295,270,-1,#PB_ScrollArea_BorderLess)
+  ScrollAreaGadget(#PB_Any,10,15,315,133,295,270,-1,#PB_ScrollArea_BorderLess)
   
   TextGadget(#PB_Any,0,7,60,22,"User Name")
   StringGadget(#FTP_USER_STRING,80,5,215,22,ftp_user)
@@ -4855,7 +4929,7 @@ Procedure Main_Window()
   StringGadget(#FTP_FOLDER_STRING,80,80,215,22,ftp_Folder)
   TextGadget(#PB_Any,0,107,60,22,"HTTP Path")
   StringGadget(#HTTP_SERVER_STRING,80,105,215,22,HTTP_Server)
-  
+   
   FrameGadget(#PB_Any,5,135,290,1,"",#PB_Frame_Flat)
   
   TextGadget(#PB_Any,0,147,60,22,"Game Path")
@@ -4870,10 +4944,11 @@ Procedure Main_Window()
   StringGadget(#FTP_MAGAZINE_PATH,80,245,215,22,FTP_Mags_Folder)
   
   CloseGadgetList()
+  CloseGadgetList()
   
-  FrameGadget(#PB_Any,445,158,330,137,"Folder Settings")
+  FrameGadget(#PB_Any,445,158,330,137,"Folder Settings",#PB_Frame_Container)
   
-  ScrollAreaGadget(#PB_Any,455,175,315,113,295,155,-1,#PB_ScrollArea_BorderLess)
+  ScrollAreaGadget(#PB_Any,10,15,315,113,295,155,-1,#PB_ScrollArea_BorderLess)
   
   TextGadget(#PARENT_TXT,0,7,40,22,"Parent",#PB_Text_Center)  
   StringGadget(#WHD_MAIN_STRING,40,5,172,22,WHD_Folder,#PB_String_ReadOnly)
@@ -4901,22 +4976,30 @@ Procedure Main_Window()
   ButtonGadget(#WHD_OPEN_MAGS_BUTTON,255,130,40,22,"Open")
   
   CloseGadgetList()
+  CloseGadgetList()
   
-  FrameGadget(#PB_Any,445,295,330,45,"")
+  FrameGadget(#PB_Any,445,295,330,45,"",#PB_Frame_Container)
   
-  TextGadget(#PB_Any,455,313,75,22,"Sorting:")
-  ComboBoxGadget(#WHD_SORT_COMBO,520,310,115,22)
+  TextGadget(#PB_Any,10,18,35,22,"Sort")
+  ComboBoxGadget(#WHD_SORT_COMBO,40,15,90,22)
   AddGadgetItem(#WHD_SORT_COMBO,-1,"No Sorting")
   AddGadgetItem(#WHD_SORT_COMBO,-1,"Alphabetical")
   AddGadgetItem(#WHD_SORT_COMBO,-1,"Category")
   AddGadgetItem(#WHD_SORT_COMBO,-1,"Category (0-Z)")
   SetGadgetState(#WHD_SORT_COMBO,Sort_Type)
-  ComboBoxGadget(#WHD_LANGUAGE_COMBO,650,310,120,22)
+  
+  CheckBoxGadget(#WHD_FAT32_CHECK,270,15,50,22,"FAT32")
+  SetGadgetState(#WHD_FAT32_CHECK,FAT32)
+  DisableGadget(#WHD_FAT32_CHECK,#True)
+  
+  ComboBoxGadget(#WHD_LANGUAGE_COMBO,140,15,120,22)
   AddGadgetItem(#WHD_LANGUAGE_COMBO,-1,"Ignore Languages")
   AddGadgetItem(#WHD_LANGUAGE_COMBO,-1,"Split Languages")
   SetGadgetState(#WHD_LANGUAGE_COMBO,Split_Languages)
   
   DisableGadget(#WHD_LANGUAGE_COMBO,#True)
+  
+  CloseGadgetList()
   
   FrameGadget(#PB_Any,445,340,330,270,"Filter")
   
@@ -5169,6 +5252,7 @@ Repeat
         SetGadgetText(#WHD_BETA_DEMO_STRING,WHD_Beta_Folder2)
         SetGadgetText(#WHD_MAGS_STRING,WHD_Mags_Folder)
         SetGadgetState(#WHD_SORT_COMBO,Sort_Type)
+        SetGadgetState(#WHD_FAT32_CHECK,FAT32)
         SetGadgetState(#WHD_LANGUAGE_COMBO,Split_Languages)
         
         If Sort_Type=2
@@ -5297,6 +5381,10 @@ Repeat
     Case #WHD_LANGUAGE_COMBO
       Split_Languages=GetGadgetState(#WHD_LANGUAGE_COMBO)
       Update_Genre()
+      
+      Case #WHD_FAT32_CHECK
+      FAT32=GetGadgetState(#WHD_FAT32_CHECK)
+      Update_Genre() 
       
     Case #DONATE_BUTTON
       Donate_Window()
@@ -5883,9 +5971,9 @@ ForEver
 
 End
 ; IDE Options = PureBasic 6.41 (Windows - x64)
-; CursorPosition = 3829
-; FirstLine = 1457
-; Folding = AAIAAAAAMQB9
+; CursorPosition = 280
+; FirstLine = 251
+; Folding = AAIAgAAAAAA9
 ; Optimizer
 ; EnableThread
 ; EnableXP
