@@ -1,4 +1,4 @@
-<img width="1096" height="829" alt="image" src="https://github.com/user-attachments/assets/65b0a6c8-7673-4c51-904d-934a55f910db" />
+<img width="1096" height="829" alt="image" src="https://github.com/user-attachments/assets/1e848b50-ff88-4691-8cd8-5c07e453ccf1" />
 
 # WHDLoad-Download-Tool
 WHDLoad-Download-Tool is a tool to help manage and download Retroplay's WHDLoad archives.
@@ -14,3 +14,4 @@ WHDLoad-Download-Tool is a tool to help manage and download Retroplay's WHDLoad 
 - Only downloads what you are missing.
 - HTTP and FTP support.
 - Full CRC32 file checksum support.
+- FAT32 support
